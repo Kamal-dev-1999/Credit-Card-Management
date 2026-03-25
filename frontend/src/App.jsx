@@ -9,6 +9,9 @@ import AITipCard from './components/AITipCard';
 import RecentBillsTable from './components/RecentBillsTable';
 import ManageCards from './components/ManageCards';
 
+import AIInsights from './components/AIInsights';
+import GlobalChatbot from './components/GlobalChatbot';
+
 function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [activeCard, setActiveCard] = useState(null);
@@ -84,6 +87,14 @@ function App() {
       );
     }
     
+    if (activePage === 'ai-insights') {
+      return (
+        <div className="animate-in fade-in duration-500 pb-8 h-full flex-1">
+           <AIInsights />
+        </div>
+      );
+    }
+    
     // Placeholder pages for other routes
     return (
       <div className="flex-1 flex items-center justify-center bg-white rounded-3xl border border-gray-100 shadow-sm h-full w-full min-h-[400px] animate-in fade-in duration-500">
@@ -114,6 +125,8 @@ function App() {
         {renderContent()}
 
       </div>
+      
+      <GlobalChatbot />
     </div>
   );
 }
