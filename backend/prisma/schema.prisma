@@ -4,14 +4,14 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
-  id             String    @id @default(uuid())
-  email          String    @unique
-  whatsappNumber String?
-  cards          Card[]
+  id                 String    @id @default(uuid())
+  email              String    @unique
+  whatsappNumber     String?
+  googleRefreshToken String?   // Stores the OAuth refresh token
+  cards              Card[]
   expenses       Expense[]
 }
 

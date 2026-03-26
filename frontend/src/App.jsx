@@ -111,7 +111,10 @@ function App() {
 
   return (
     <div className="flex h-screen bg-white overflow-hidden font-sans">
-      <Sidebar activePage={activePage} setActivePage={setActivePage} />
+      <Sidebar activePage={activePage} setActivePage={setActivePage} onSignOut={() => {
+        localStorage.removeItem('lana_user_email');
+        window.location.reload();
+      }} />
       
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col p-5 sm:p-8 lg:p-10 overflow-y-auto bg-[#fafbfc] transition-all duration-300 relative scroll-smooth">

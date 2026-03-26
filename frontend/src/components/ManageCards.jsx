@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus } from 'lucide-react';
+import { Plus, Mail } from 'lucide-react';
 import ManageCardItem from './ManageCardItem';
 import AddCardModal from './AddCardModal';
 
@@ -72,20 +72,36 @@ const ManageCards = () => {
   return (
     <div className="flex flex-col h-full w-full max-w-7xl mx-auto">
       
-      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 w-full">
         <div>
           <h2 className="text-3xl font-bold text-gray-800 tracking-tight">My Cards</h2>
           <p className="text-sm text-gray-500 mt-1">Manage your active credit cards, due dates, and auto-sync settings.</p>
         </div>
         
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-primary hover:bg-yellow-500 text-white px-5 py-3 rounded-xl font-semibold text-sm transition-transform active:scale-95 shadow-lg shadow-yellow-200 shrink-0 w-full sm:w-auto"
-        >
-          <Plus size={18} />
-          Add New Card
-        </button>
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          {!localStorage.getItem('lana_user_email') ? (
+            <button 
+              onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+              className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-5 py-3 rounded-xl font-semibold text-sm transition-transform active:scale-95 shadow-sm shrink-0 flex-1 sm:flex-auto"
+            >
+              <Mail size={18} className="text-red-500" />
+              Connect Gmail
+            </button>
+          ) : (
+            <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-xl text-sm font-semibold shrink-0">
+              <Mail size={16} className="text-green-600" />
+              Gmail Connected
+            </div>
+          )}
+
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="flex items-center justify-center gap-2 bg-primary hover:bg-yellow-500 text-white px-5 py-3 rounded-xl font-semibold text-sm transition-transform active:scale-95 shadow-lg shadow-yellow-200 shrink-0 flex-1 sm:flex-auto"
+          >
+            <Plus size={18} />
+            Add New Card
+          </button>
+        </div>
       </div>
 
       {/* Grid Layout */}

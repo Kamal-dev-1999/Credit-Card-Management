@@ -7,7 +7,7 @@ import {
   LogOut
 } from 'lucide-react';
 
-const Sidebar = ({ activePage = 'dashboard', setActivePage = () => {} }) => {
+const Sidebar = ({ activePage = 'dashboard', setActivePage = () => {}, onSignOut = () => {} }) => {
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'manage-cards', name: 'Manage Cards', icon: <CreditCard size={18} /> },
@@ -59,7 +59,7 @@ const Sidebar = ({ activePage = 'dashboard', setActivePage = () => {} }) => {
         {/* Separator */}
         <div className="mx-3 mt-4 mb-2 h-px bg-gray-100"></div>
 
-        <button className="flex items-center justify-center gap-2 w-11/12 bg-primary hover:bg-yellow-500 text-white py-3.5 rounded-2xl font-semibold text-sm transition-transform active:scale-95 shadow-lg shadow-yellow-200">
+        <button onClick={onSignOut} className="flex items-center justify-center gap-2 w-11/12 bg-primary hover:bg-yellow-500 text-white py-3.5 rounded-2xl font-semibold text-sm transition-transform active:scale-95 shadow-lg shadow-yellow-200">
           Sign Out
           <LogOut size={16} />
         </button>
