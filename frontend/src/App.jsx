@@ -56,7 +56,7 @@ function App() {
             {/* Right Column - Top Stats & Widgets */}
             <div className="flex-1 flex flex-col gap-6 lg:gap-8 min-w-0">
               
-               <div className="flex flex-col md:flex-row gap-6 lg:gap-8 lg:min-h-[220px]">
+               <div className="flex flex-col gap-6 lg:gap-8 lg:min-h-[220px] min-w-0">
                  <div className="flex-[2] min-w-0">
                    <DueSummaryCard activeCard={activeCard} refreshKey={refreshKey} />
                  </div>
@@ -65,8 +65,8 @@ function App() {
                  </div>
                </div>
                
-               <div className="flex flex-col gap-5">
-                 <div className="min-h-[320px] xl:min-h-[240px]">
+               <div className="flex flex-col gap-5 min-w-0 w-full">
+                 <div className="min-h-[320px] xl:min-h-[240px] w-full min-w-0">
                     <DueDatesGraph refreshKey={refreshKey} />
                  </div>
                  <AITipCard />

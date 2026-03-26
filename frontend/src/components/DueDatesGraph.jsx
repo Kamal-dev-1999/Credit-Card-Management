@@ -86,7 +86,7 @@ const DueDatesGraph = ({ refreshKey }) => {
   const ticks = view === 'month' ? [1, 5, 10, 15, 20, 25, 31] : [1, 2, 3, 4, 5, 6, 7];
 
   return (
-    <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-50 flex flex-col relative w-full min-h-[350px]">
+    <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-50 flex flex-col relative w-full min-h-[350px] overflow-hidden min-w-0">
       <div className="flex justify-between items-center mb-6">
         <div className="flex gap-3">
           <select 
@@ -102,7 +102,7 @@ const DueDatesGraph = ({ refreshKey }) => {
         <h2 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest hidden sm:block">Spending Cycle & Due Dates</h2>
       </div>
       
-      <div className="flex-1 w-full min-h-[300px] relative min-w-0">
+      <div className="flex-1 w-full min-h-[300px] relative min-w-0 overflow-hidden">
         {loading && graphData.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center text-gray-300 font-bold text-xs uppercase tracking-widest">
             Loading cycle data...
@@ -112,8 +112,8 @@ const DueDatesGraph = ({ refreshKey }) => {
             Sync your emails to see your spending cycle
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="300" aspect={3}>
-            <AreaChart data={filteredData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={filteredData} margin={{ top: 20, right: 30, left: 10, bottom: 0 }}>
               <defs>
                 {seriesKeys.map((key, idx) => (
                   <linearGradient key={`grad-${key}`} id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
