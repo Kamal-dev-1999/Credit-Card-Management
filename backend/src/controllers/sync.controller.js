@@ -63,34 +63,26 @@ const syncEmailsForUser = async (user) => {
       continue;
     }
 
-    // ── Find matching card by last4Digits ──
-    let card = null;
-    if (parsed.last4Digits) {
-      const isPartial = parsed.last4Digits.length < 4;
-      const query = supabase.from('cards').select('id, cardname, bankname');
-      
-      const { data: cards, error: cardErr } = await (
-        isPartial 
-          ? query.ilike('last4digits', `%${parsed.last4Digits}`) 
-          : query.eq('last4digits', parsed.last4Digits)
-      ).limit(1);
-
-      if (cardErr) {
-        console.error('  ❌ Card lookup error:', cardErr.message);
-        skipped++;
-        continue;
-      }
-      card = cards?.[0] || null;
+    // ── Find matching card ──
+    const { data: allCards, error: cardsErr } = await supabase.from('cards').select('*');
+    if (cardsErr) {
+      console.error('  ❌ Error fetching cards for matching:', cardsErr.message);
+      skipped++;
+      continue;
     }
 
-    // If no card matched, try matching by bank name
+    // Match by last4Digits + Bank Name or Nickname
+    let card = allCards.find(c => {
+      const last4Match = parsed.last4Digits ? c.last4digits.endsWith(parsed.last4Digits) : true;
+      const nameMatch = c.bankname.toLowerCase().includes(parsed.bankName.toLowerCase()) || 
+                       (c.cardname && c.cardname.toLowerCase().includes(parsed.bankName.toLowerCase()));
+      return last4Match && nameMatch;
+    });
+
     if (!card) {
-      const { data: cards } = await supabase
-        .from('cards')
-        .select('id, cardname, bankname')
-        .ilike('bankname', `%${parsed.bankName}%`)
-        .limit(1);
-      card = cards?.[0] || null;
+      // Fallback: match by just last 4 if unique
+      const last4Matches = allCards.filter(c => parsed.last4Digits && c.last4digits.endsWith(parsed.last4Digits));
+      if (last4Matches.length === 1) card = last4Matches[0];
     }
 
     if (!card) {
@@ -99,7 +91,7 @@ const syncEmailsForUser = async (user) => {
       continue;
     }
 
-    console.log(`  🃏 Matched card: ${card.cardname} (${card.bankname})`);
+    console.log(`  🃏 Matched card: ${card.cardname || card.bankname} (ID: ${card.id})`);
 
     // ── Handle Payment Confirmation ──
     if (parsed.isPaymentConfirmation) {
@@ -112,7 +104,7 @@ const syncEmailsForUser = async (user) => {
       if (updateErr) {
         console.error('  ❌ Failed to mark bill as Paid:', updateErr.message);
       } else {
-        console.log(`  ✅ Marked bill(s) for ${card.cardname} as Paid.`);
+        console.log(`  ✅ Marked bill(s) for ${card.cardname || card.bankname} as Paid.`);
         processed++;
       }
       continue;
@@ -128,6 +120,22 @@ const syncEmailsForUser = async (user) => {
     const status = computeStatus(parsed.dueDate);
     const today = new Date().toISOString().split('T')[0];
 
+    // ── Manual Duplicate Check ──
+    // Instead of relying on a DB-level unique constraint (which is missing/failing), 
+    // we query first to see if this bill already exists.
+    const { data: existingBills, error: fetchErr } = await supabase
+      .from('bills')
+      .select('id, amountdue, status')
+      .eq('cardid', card.id)
+      .eq('duedate', parsed.dueDate || null)
+      .limit(1);
+
+    if (fetchErr) {
+      console.error('  ❌ Error checking for duplicates:', fetchErr.message);
+      skipped++;
+      continue;
+    }
+
     const billRecord = {
       cardid:        card.id,
       amountdue:     parsed.amountDue,
@@ -136,20 +144,33 @@ const syncEmailsForUser = async (user) => {
       status,
     };
 
-    // Upsert: unique on (cardid, duedate) to prevent duplicate bills
-    const { error: upsertErr } = await supabase
-      .from('bills')
-      .upsert([billRecord], {
-        onConflict: 'cardid, duedate',
-        ignoreDuplicates: false,
-      });
+    if (existingBills && existingBills.length > 0) {
+      // Update existing record if found
+      const { error: updateErr } = await supabase
+        .from('bills')
+        .update(billRecord)
+        .eq('id', existingBills[0].id);
 
-    if (upsertErr) {
-      console.error('  ❌ Upsert failed:', upsertErr.message);
-      skipped++;
+      if (updateErr) {
+        console.error('  ❌ Update failed:', updateErr.message);
+        skipped++;
+      } else {
+        console.log(`  🔄 Updated: ${card.cardname || card.bankname} — ₹${parsed.amountDue} due ${parsed.dueDate || 'unknown date'}`);
+        processed++;
+      }
     } else {
-      console.log(`  ✅ Saved: ${card.cardName} — ₹${parsed.amountDue} due ${parsed.dueDate || 'unknown date'} [${status}]`);
-      processed++;
+      // Insert new record
+      const { error: insertErr } = await supabase
+        .from('bills')
+        .insert([billRecord]);
+
+      if (insertErr) {
+        console.error('  ❌ Insert failed:', insertErr.message);
+        skipped++;
+      } else {
+        console.log(`  ✅ Saved: ${card.cardname || card.bankname} — ₹${parsed.amountDue} due ${parsed.dueDate || 'unknown date'} [${status}]`);
+        processed++;
+      }
     }
   }
 

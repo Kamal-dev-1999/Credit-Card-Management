@@ -34,12 +34,12 @@ const extractBody = (payload) => {
   }
 
   if (payload.parts) {
-    // Prefer text/plain, fall back to text/html
-    const plainPart = payload.parts.find(p => p.mimeType === 'text/plain');
-    if (plainPart?.body?.data) return decodeBase64(plainPart.body.data);
-
+    // Prefer text/html as statements often have tables/formatting
     const htmlPart = payload.parts.find(p => p.mimeType === 'text/html');
     if (htmlPart?.body?.data) return decodeBase64(htmlPart.body.data);
+
+    const plainPart = payload.parts.find(p => p.mimeType === 'text/plain');
+    if (plainPart?.body?.data) return decodeBase64(plainPart.body.data);
 
     // Recurse into multipart
     for (const part of payload.parts) {
@@ -58,7 +58,7 @@ const extractBody = (payload) => {
  * @param {string} refreshToken 
  * @param {number} daysLimit - How many days to scan (default 30)
  */
-const fetchCreditCardEmails = async (refreshToken, daysLimit = 30) => {
+const fetchCreditCardEmails = async (refreshToken, daysLimit = 90) => {
   const gmail = createGmailClient(refreshToken);
 
   // Build a date filter

@@ -100,37 +100,44 @@ const BANK_CONFIGS = {
 
 const UNIVERSAL_PATTERNS = {
   amountDue: [
-    // "Total Amount Due: Rs. 14,450.20" or "INR 14,450"
-    /(?:Total\s+Amt\s+Due|Total\s+Amount\s+Due|Amount\s+Due|Statement\s+Balance|Outstanding\s+Amount|Total\s+Payable|Amt\s+Payable|Current\s+Due|Total\s+Due|Payable\s+Amt)\s*[:\-]?\s*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+    // IndusInd specific: "Total and Minimum Amounts Due... are ₹ 115509.00 DR and ₹9997.00 respectively"
+    /Total\s+and\s+Minimum\s+Amounts\s+Due[^]*?are\s*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)\s+DR/i,
+    // HDFC specific: "Spends of Rs.37853.21 as on"
+    /(?:Spends\s+of|Amount\s+of|Total\s+Due\s+of)\s*(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)/i,
+    // Standard labels with flexible spacing/tags
+    /(?:Total\s+Amt\s+Due|Total\s+Amount\s+Due|Amount\s+Due|Statement\s+Balance|Outstanding\s+Amount|Total\s+Payable|Amt\s+Payable|Current\s+Due|Total\s+Due|Payable\s+Amt|Net\s+Amount\s+Payable|Amount\s+Payable|Payable\s+Amount|Current\s+Outstanding|Summary\s+of\s+Account)[^]{0,200}?(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i,
     // "Payment of INR 14,450.20 is due"
     /[Pp]ayment\s+of\s+(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)\s+is\s+due/i,
     // "Pay Rs. 14,450.20 by"
     /[Pp]ay\s+(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)\s+by/i,
     // "Minimum Amount Due INR 1,450.00"
-    /[Mm]inimum\s+(?:Amount\s+)?[Dd]ue\s*[:\-]?\s*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i,
-    // Catch-all for simple "Rs. 1,234.00" near billing keywords, avoiding too generic matches
-    /(?:Due|Statement|Balance|Payable|Outstanding|Total)[^]{0,150}?(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)/i,
+    /[Mm]inimum\s+(?:Amount\s+)?[Dd]ue[^]{0,200}?(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+    // Specific for simple table layouts
+    /(?:Total\s+Amount|Balance\s+Amount|Amount\s+Payable|Balance\s+Due)[^]{0,100}?(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)/i,
   ],
 
   dueDate: [
-    /(?:Due\s+Date|Payment\s+Due\s+Date|Pay\s+By|Due\s+On|Date\s+of\s+Payment|By\s+Date|Due\s+by)\s*[:\-]?\s*(\d{1,2}[\-\/\s](?:\d{1,2}|[A-Za-z]{3,9})[\-\/\s]\d{2,4})/i,
-    /due\s+on\s+(\d{1,2}\s+[A-Za-z]{3,9},?\s+\d{4})/i,
-    /by\s+([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})/i,
-    /(?:Due|Pay\s+by)[^]{0,100}?(\d{1,2}[\-\/\s](?:\d{1,2}|[A-Za-z]{3,9})[\-\/\s]\d{2,4})/i,
+    /(?:Due\s+Date|DueDate|Payment\s+Due\s+Date|Pay\s+By|Due\s+On|Date\s+of\s+Payment|By\s+Date|Due\s+by|due\s+by)[^]{0,200}?(\d{1,2}[\-\/\s](?:\d{1,2}|[A-Za-z]{3,9})[\-\/\s]\d{2,4})/i,
+    /due\s+on\s+([^]{0,40}?(\d{1,2}\s+[A-Za-z]{3,9},?\s+\d{4}))/i, // Relaxed for SBI
+    /by\s+(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9},?\s+\d{4})/i,
+    /due\s+by\s+(\d{1,2}\s+[A-Za-z]{3,9},?\s+\d{4})/i,
+    /(?:Due|Pay\s+by)[^]{0,200}?(\d{1,2}(?:st|nd|rd|th)?[\-\/\s](?:\d{1,2}|[A-Za-z]{3,9})[\-\/\s]\d{2,4})/i,
   ],
 
   statementDate: [
-    /(?:Statement\s+Date|Generated\s+On|Billing\s+Date|Statement\s+Period\s+Ending)\s*[:\-]?\s*(\d{1,2}[\-\/\s](?:\d{1,2}|[A-Za-z]{3,9})[\-\/\s]\d{2,4})/i,
+    /(?:Statement\s+Date|Generated\s+On|Billing\s+Date|Statement\s+Period\s+Ending|as\s+on)[^]{0,200}?(\d{1,2}(?:st|nd|rd|th)?[\-\/\s](?:\d{1,2}|[A-Za-z]{3,9})[\-\/\s]\d{2,4})/i,
   ],
 
   last4Digits: [
-    /(?:card|account|ending\s*in|ending\s*with|number)\s*(?:No\.?\s*)?(?:[Xx\*]{2,}|\.{2,}|XXXX\-XXXX\-XXXX\-)\s*(\d{4})/i,
-    /(?:card|account|ending\s*in|ending\s*with|number)\s*(?:No\.?\s*)?(\d{4})\b/i,
-    /[Cc]ard\s*[Nn]o\.?\s*[xX\d]{0,12}(\d{2,4})\b/i,
-    /[xX]{2,}(\d{2,4})\b/i, // Matches XX10 or XXXX1234
-    /[xX]{4}\s*(\d{4})/i,
-    /XX(\d{4})/i,
-    /\*(\d{4})\b/i,
+    // Explicitly ignore common years (2024-2027) to avoid matching Axis bank year in subject
+    /(?:card|account|ending\s*in|ending\s*with|number)\s*(?:No\.?\s*)?(?:[Xx\*]{2,}|\.{2,}|XXXX\-XXXX\-XXXX\-)\s*(?!2024|2025|2026|2027)(\d{4})/i,
+    /(?:card|account|ending\s*in|ending\s*with|number)[^]{0,100}?(?!2024|2025|2026|2027)(\d{4})\b/i,
+    /[Cc]ard\s*[Nn]o\.?\s*[xX\d]{0,12}(?!2024|2025|2026|2027)(\d{2,4})\b/i,
+    /[xX]{2,}(?!2024|2025|2026|2027)(\d{2,4})\b/i, 
+    /[xX]{4}\s*(?!2024|2025|2026|2027)(\d{4})/i,
+    /XX(?!2024|2025|2026|2027)(\d{4})/i,
+    /\*(?!2024|2025|2026|2027)(\d{4})\b/i,
+    /(?:ending\s+in|ending\s+with)\s+(?!2024|2025|2026|2027)(\d{4})/i,
   ],
 
   paymentConfirmation: [
@@ -138,6 +145,8 @@ const UNIVERSAL_PATTERNS = {
     /[Tt]hank\s+you\s+for\s+(?:your\s+)?payment/i,
     /[Tt]ransaction\s+(?:confirmed|successful|complete)/i,
     /[Ss]uccessfully\s+paid/i,
+    /Payment\s+for\s+your\s+SBI\s+Card\s+ending\s+in[^]{0,50}is\s+received/i,
+    /[Rr]eceived\s+payment\s+of/i,
   ],
 };
 
@@ -146,8 +155,8 @@ const UNIVERSAL_PATTERNS = {
  */
 const cleanAmount = (str) => {
   if (!str) return null;
-  // Remove currency symbols, commas, and extra whitespace
-  const cleaned = str.replace(/[Rs\.INR₹,]/g, '').trim();
+  // Remove currency symbols and commas, but PRESERVE the decimal dot
+  const cleaned = str.replace(/[RsINR₹,]/g, '').trim();
   const num = parseFloat(cleaned);
   return isNaN(num) ? null : num;
 };
