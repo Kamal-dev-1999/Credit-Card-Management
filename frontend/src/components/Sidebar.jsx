@@ -1,13 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   LayoutDashboard, 
   CreditCard,
   Sparkles,
   Settings,
-  LogOut
+  LogOut,
+  Mail
 } from 'lucide-react';
 
 const Sidebar = ({ activePage = 'dashboard', setActivePage = () => {}, onSignOut = () => {} }) => {
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('lana_user_email'));
+  const userEmail = localStorage.getItem('lana_user_email');
+
+  const handleSignOut = () => {
+    setIsLoggedIn(false);
+    onSignOut();
+  };
+
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { id: 'manage-cards', name: 'Manage Cards', icon: <CreditCard size={18} /> },
@@ -59,10 +68,28 @@ const Sidebar = ({ activePage = 'dashboard', setActivePage = () => {}, onSignOut
         {/* Separator */}
         <div className="mx-3 mt-4 mb-2 h-px bg-gray-100"></div>
 
-        <button onClick={onSignOut} className="flex items-center justify-center gap-2 w-11/12 bg-primary hover:bg-yellow-500 text-white py-3.5 rounded-2xl font-semibold text-sm transition-transform active:scale-95 shadow-lg shadow-yellow-200">
-          Sign Out
-          <LogOut size={16} />
-        </button>
+        {isLoggedIn ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-600 to-primary flex items-center justify-center text-white font-bold text-xs shrink-0">
+                {userEmail?.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-xs text-gray-600 font-medium truncate">{userEmail}</span>
+            </div>
+            <button onClick={handleSignOut} className="flex items-center justify-center gap-2 w-11/12 bg-primary hover:bg-yellow-500 text-white py-3.5 rounded-2xl font-semibold text-sm transition-transform active:scale-95 shadow-lg shadow-yellow-200">
+              Sign Out
+              <LogOut size={16} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+            className="flex items-center justify-center gap-2 w-11/12 bg-white hover:bg-yellow-50 text-gray-700 border border-gray-200 hover:border-primary py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95 shadow-sm"
+          >
+            <Mail size={16} className="text-red-500" />
+            Sign in with Gmail
+          </button>
+        )}
       </div>
     </div>
   );
