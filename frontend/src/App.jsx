@@ -67,7 +67,7 @@ function App() {
                
                <div className="flex flex-col gap-5">
                  <div className="min-h-[320px] xl:min-h-[240px]">
-                    <DueDatesGraph />
+                    <DueDatesGraph refreshKey={refreshKey} />
                  </div>
                  <AITipCard />
                </div>

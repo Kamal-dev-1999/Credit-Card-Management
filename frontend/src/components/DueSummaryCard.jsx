@@ -9,7 +9,7 @@ const DueSummaryCard = ({ activeCard, refreshKey }) => {
 
   const fetchSummary = () => {
     setLoading(true);
-    fetch('/api/dashboard/summary')
+    fetch('http://127.0.0.1:5000/api/dashboard/summary')
       .then(r => r.json())
       .then(data => {
         setTotalDue(data.totalDue ?? null);

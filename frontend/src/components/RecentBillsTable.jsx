@@ -33,7 +33,7 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
 
   const fetchBills = () => {
     setLoading(true);
-    fetch('/api/dashboard/summary')
+    fetch('http://127.0.0.1:5000/api/dashboard/summary')
       .then(r => r.json())
       .then(data => {
         const normalized = (data.bills || []).map(b => ({
@@ -60,7 +60,7 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
   const updateBillStatus = async (id, newStatus) => {
     setLoadingId(id);
     try {
-      const res = await fetch(`/api/bills/${id}/status`, {
+      const res = await fetch(`http://127.0.0.1:5000/api/bills/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })

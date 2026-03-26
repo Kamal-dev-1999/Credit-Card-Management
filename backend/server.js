@@ -37,6 +37,64 @@ cron.schedule('0 6,18 * * *', () => {
 });
 console.log('⏰ Cron job scheduled: email sync every 12 hours (6am & 6pm)');
 
+// Graph Data API — generates a 31-day spending cycle based on due dates
+app.get('/api/dashboard/graph-data', async (req, res) => {
+  console.log('🟢 HIT: /api/dashboard/graph-data');
+  try {
+    const { data: bills, error: billErr } = await supabase
+      .from('bills')
+      .select('amountdue, duedate, cards(bankname, cardname)')
+      .filter('status', 'neq', 'Paid');
+
+    if (billErr) throw billErr;
+
+    // We generate a 31-day data set
+    const graphData = Array.from({ length: 31 }, (_, i) => ({
+      day: i + 1,
+      name: (i + 1).toString(),
+    }));
+
+    const cardKeys = new Set();
+    
+    (bills || []).forEach(bill => {
+      const bank = bill.cards?.bankname || 'Card';
+      cardKeys.add(bank);
+      const dueDate = new Date(bill.duedate);
+      const dueDay = dueDate.getDate();
+      const amount = bill.amountdue || 0;
+
+      // Simulate a "cycle" by distributing the amount cumulatively over 30 days leading to the due date
+      // This makes the AreaChart look like a growth curve ending at the deadline
+      for (let d = 1; d <= 31; d++) {
+        const key = `${bank}Spend`;
+        if (!graphData[d - 1][key]) graphData[d - 1][key] = 0;
+        
+        if (d <= dueDay) {
+          // Cumulative growth: (current_day / due_day) * total_amount
+          graphData[d - 1][key] += (d / dueDay) * amount;
+        } else {
+          // Stay flat after due date
+          graphData[d - 1][key] += amount;
+        }
+      }
+    });
+
+    res.json({
+      data: graphData,
+      keys: Array.from(cardKeys).map(k => `${k}Spend`),
+      banks: Array.from(cardKeys),
+      dueDates: (bills || []).map(b => ({
+        day: new Date(b.duedate).getDate(),
+        bank: b.cards?.bankname,
+        amount: b.amountdue
+      }))
+    });
+  } catch (err) {
+    console.error('❌ Graph data error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Dashboard Summary API — replaces mock data on the frontend
 app.get('/api/dashboard/summary', async (req, res) => {
   try {
