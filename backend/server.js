@@ -165,7 +165,7 @@ app.get('/api/cards', async (req, res) => {
 
 app.post('/api/cards', async (req, res) => {
   try {
-    const { cardName, bankName, last4Digits, cardType, creditLimit, userId, billingCycleDate } = req.body;
+    const { cardName, bankName, last4Digits, cardType, creditLimit, userId, billingCycleDate, colorTheme } = req.body;
     const { data, error } = await supabase
       .from('cards')
       .insert([{ 
@@ -173,7 +173,9 @@ app.post('/api/cards', async (req, res) => {
         bankname: bankName, 
         last4digits: last4Digits, 
         billingcycledate: billingCycleDate || 1,
-        userid: userId 
+        userid: userId,
+        cardtype: cardType || 'Visa',
+        colortheme: colorTheme || 'purple'
       }])
       .select();
     
@@ -187,13 +189,15 @@ app.post('/api/cards', async (req, res) => {
 app.put('/api/cards/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { cardName, bankName, last4Digits, cardType, creditLimit } = req.body;
+    const { cardName, bankName, last4Digits, cardType, creditLimit, colorTheme } = req.body;
     const { data, error } = await supabase
       .from('cards')
       .update({ 
         cardname: cardName, 
         bankname: bankName, 
-        last4digits: last4Digits
+        last4digits: last4Digits,
+        cardtype: cardType,
+        colortheme: colorTheme
       })
       .eq('id', id)
       .select();

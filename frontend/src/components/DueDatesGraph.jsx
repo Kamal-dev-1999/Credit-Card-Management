@@ -74,7 +74,7 @@ const DueDatesGraph = () => {
   const ticks = view === 'month' ? [3, 6, 9, 12, 15, 18, 21, 24, 27, 30] : [1, 2, 3, 4, 5, 6, 7];
 
   return (
-    <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-50 h-full flex flex-col relative w-full">
+    <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-50 flex flex-col relative w-full min-h-[350px]">
       <div className="flex justify-between items-center mb-6">
         <div className="flex gap-3">
           <select 
@@ -98,10 +98,10 @@ const DueDatesGraph = () => {
             <option value="card2">Gold Visa</option>
           </select>
         </div>
-        <h2 className="text-gray-500 font-medium text-sm tracking-wide">Spending Cycle & Due Dates</h2>
+        <h2 className="text-gray-500 font-medium text-sm tracking-wide hidden sm:block">Spending Cycle & Due Dates</h2>
       </div>
       
-      <div className="flex-1 w-full h-[220px] relative">
+      <div className="flex-1 w-full h-[250px] relative">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={filteredData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
             <defs>

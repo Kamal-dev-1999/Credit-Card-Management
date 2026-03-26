@@ -5,9 +5,61 @@ import { Wifi, Edit2, Trash2, Cloud, CloudOff } from 'lucide-react';
 const ManageCardItem = ({ card, onDelete, onEdit, onToggleSync }) => {
   const [showOverlay, setShowOverlay] = useState(false);
 
+  // Map theme ID to CSS classes or use directly if hex
+  const getBackground = () => {
+    const themes = {
+      'midnight-purple': 'from-purple-900 to-indigo-800',
+      'royal-blue':     'from-blue-800 to-blue-600',
+      'gold-rush':      'from-yellow-600 to-yellow-400',
+      'ruby-red':       'from-rose-700 to-red-600',
+      'forest-green':   'from-emerald-800 to-teal-700',
+      'luxury-black':   'from-gray-900 to-gray-700',
+    };
+
+    if (themes[card.colorTheme]) {
+      return `bg-gradient-to-br ${themes[card.colorTheme]}`;
+    }
+    if (card.colorTheme?.startsWith('#')) {
+      return ''; // Handled via inline style
+    }
+    return 'bg-gradient-to-br from-purple-900 to-purple-600'; // Fallback
+  };
+
+  const renderBrand = () => {
+    const brand = (card.brand || 'Visa').toLowerCase();
+    
+    if (brand === 'visa') {
+      return <div className="text-3xl font-bold italic opacity-90 drop-shadow-sm">VISA</div>;
+    }
+    if (brand === 'mastercard') {
+      return (
+        <div className="flex relative w-10 h-6">
+          <div className="w-6 h-6 rounded-full bg-red-500 opacity-90 absolute left-0 mix-blend-multiply"></div>
+          <div className="w-6 h-6 rounded-full bg-yellow-400 opacity-90 absolute left-3 mix-blend-multiply"></div>
+        </div>
+      );
+    }
+    if (brand === 'rupay') {
+      return (
+        <div className="bg-white/20 px-3 py-1 rounded-md backdrop-blur-sm border border-white/20">
+          <span className="text-xs font-black italic tracking-tighter">RuPay</span>
+        </div>
+      );
+    }
+    if (brand === 'amex') {
+      return (
+        <div className="bg-blue-600/40 px-3 py-1 rounded-md backdrop-blur-sm border border-blue-400/30">
+          <span className="text-xs font-bold tracking-widest">AMEX</span>
+        </div>
+      );
+    }
+    return <div className="text-xs font-bold opacity-60 uppercase">{brand}</div>;
+  };
+
   return (
     <div 
-      className={`relative w-full rounded-3xl bg-gradient-to-br ${card.bgClass} text-white shadow-lg overflow-hidden transition-all duration-300 transform-gpu hover:-translate-y-1 hover:shadow-xl aspect-[1.6/1] cursor-pointer`}
+      className={`relative w-full rounded-3xl ${getBackground()} text-white shadow-lg overflow-hidden transition-all duration-300 transform-gpu hover:-translate-y-1 hover:shadow-xl aspect-[1.6/1] cursor-pointer`}
+      style={{ backgroundColor: card.colorTheme?.startsWith('#') ? card.colorTheme : undefined }}
       onMouseEnter={() => setShowOverlay(true)}
       onMouseLeave={() => setShowOverlay(false)}
       onClick={() => setShowOverlay(!showOverlay)}
@@ -42,14 +94,7 @@ const ManageCardItem = ({ card, onDelete, onEdit, onToggleSync }) => {
             <div className="text-[10px] text-white/80 mb-0.5 tracking-widest uppercase">Next Bill</div>
             <div className="font-medium text-sm drop-shadow-sm">{card.nextBillingDate}</div>
           </div>
-          {card.brand.toLowerCase() === 'visa' ? (
-             <div className="text-3xl font-bold italic opacity-90 drop-shadow-sm">VISA</div>
-          ) : (
-            <div className="flex relative w-10 h-6">
-              <div className="w-6 h-6 rounded-full bg-red-500 opacity-90 absolute left-0 mix-blend-multiply"></div>
-              <div className="w-6 h-6 rounded-full bg-yellow-400 opacity-90 absolute left-3 mix-blend-multiply"></div>
-            </div>
-          )}
+          {renderBrand()}
         </div>
       </div>
 

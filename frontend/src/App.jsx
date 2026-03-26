@@ -45,14 +45,14 @@ function App() {
           {/* Top Section */}
           <div className="flex flex-col xl:flex-row gap-6 lg:gap-8 mb-8">
             {/* Left Column - Cards Stack */}
-            <div className="w-full xl:w-[340px] shrink-0 h-[450px]">
-              <CardStack onCardSelect={setActiveCard} />
+            <div className="w-full xl:w-[340px] shrink-0 xl:h-[480px] h-auto mb-4 xl:mb-0">
+              <CardStack onCardSelect={setActiveCard} setActivePage={setActivePage} />
             </div>
             
             {/* Right Column - Top Stats & Widgets */}
-            <div className="flex-1 flex flex-col gap-6 lg:gap-8">
+            <div className="flex-1 flex flex-col gap-6 lg:gap-8 min-w-0">
               
-               <div className="flex flex-col md:flex-row gap-6 lg:gap-8 sm:h-auto lg:min-h-[220px]">
+               <div className="flex flex-col md:flex-row gap-6 lg:gap-8 lg:min-h-[220px]">
                  <div className="flex-[2] min-w-0">
                    <DueSummaryCard activeCard={activeCard} />
                  </div>
@@ -61,8 +61,8 @@ function App() {
                  </div>
                </div>
                
-               <div className="flex-1 flex flex-col gap-5">
-                 <div className="flex-1 min-h-[240px]">
+               <div className="flex flex-col gap-5">
+                 <div className="min-h-[320px] xl:min-h-[240px]">
                     <DueDatesGraph />
                  </div>
                  <AITipCard />

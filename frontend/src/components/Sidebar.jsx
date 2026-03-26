@@ -19,7 +19,7 @@ const Sidebar = ({ activePage = 'dashboard', setActivePage = () => {}, onSignOut
 
   const menuItems = [
     { id: 'dashboard', name: 'Dashboard', icon: <LayoutDashboard size={18} /> },
-    { id: 'manage-cards', name: 'Manage Cards', icon: <CreditCard size={18} /> },
+    { id: 'manage-cards', name: 'My Cards', icon: <CreditCard size={18} /> },
     { id: 'ai-insights', name: 'AI Insights', icon: <Sparkles size={18} /> },
     { id: 'settings', name: 'Settings', icon: <Settings size={18} /> },
   ];
