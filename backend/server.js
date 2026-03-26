@@ -234,6 +234,27 @@ app.get('/api/bills', async (req, res) => {
   }
 });
 
+app.patch('/api/bills/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!status) return res.status(400).json({ error: 'Status is required' });
+
+    const { data, error } = await supabase
+      .from('bills')
+      .update({ status })
+      .eq('id', id)
+      .select();
+
+    if (error) throw error;
+    res.json(data[0]);
+  } catch (error) {
+    console.error('❌ Bill status update error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Expenses
 app.get('/api/expenses', async (req, res) => {
   try {

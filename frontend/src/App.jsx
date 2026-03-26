@@ -15,6 +15,9 @@ import GlobalChatbot from './components/GlobalChatbot';
 function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [activeCard, setActiveCard] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refreshDashboard = () => setRefreshKey(prev => prev + 1);
   
   // Notification State
   const [notifications, setNotifications] = useState([
@@ -28,12 +31,13 @@ function App() {
       id: Date.now(),
       type: 'success',
       icon: 'success',
-      title: 'Payment Successful',
-      message: `Successfully paid ₹${bill.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} to ${bill.cardName}.`,
+      title: 'Payment Recorded',
+      message: `Successfully updated ₹${bill.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} for ${bill.cardName}.`,
       time: 'Just now',
       read: false
     };
     setNotifications(prev => [newNotif, ...prev]);
+    refreshDashboard();
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -54,7 +58,7 @@ function App() {
               
                <div className="flex flex-col md:flex-row gap-6 lg:gap-8 lg:min-h-[220px]">
                  <div className="flex-[2] min-w-0">
-                   <DueSummaryCard activeCard={activeCard} />
+                   <DueSummaryCard activeCard={activeCard} refreshKey={refreshKey} />
                  </div>
                  <div className="flex-[1] min-w-[220px]">
                    <CreditHealthCard utilization={28} />
@@ -73,7 +77,7 @@ function App() {
           
           {/* Bottom Area - History Table */}
           <div className="w-full pb-8">
-            <RecentBillsTable onPaySuccess={handlePaySuccess} />
+            <RecentBillsTable onPaySuccess={handlePaySuccess} refreshKey={refreshKey} />
           </div>
         </div>
       );

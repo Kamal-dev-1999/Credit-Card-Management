@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, FileText, CheckCircle2, Loader2, CreditCard, RefreshCw } from 'lucide-react';
+import { Search, FileText, CheckCircle2, Loader2, CreditCard, RefreshCw, Undo2 } from 'lucide-react';
 
 const getBgClass = (bankName = '') => {
   const name = bankName.toLowerCase();
@@ -23,7 +23,7 @@ const formatDate = (dateStr) => {
   }
 };
 
-const RecentBillsTable = ({ onPaySuccess }) => {
+const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -36,7 +36,6 @@ const RecentBillsTable = ({ onPaySuccess }) => {
     fetch('/api/dashboard/summary')
       .then(r => r.json())
       .then(data => {
-        // Normalize API response to match table format
         const normalized = (data.bills || []).map(b => ({
           id: b.id,
           cardName: b.cards?.cardname || b.cards?.bankname || 'Unknown Card',
@@ -56,19 +55,30 @@ const RecentBillsTable = ({ onPaySuccess }) => {
       .catch(() => setLoading(false));
   };
 
-  useEffect(() => { fetchBills(); }, []);
+  useEffect(() => { fetchBills(); }, [refreshKey]);
 
-  const handleMarkAsPaid = async (id) => {
+  const updateBillStatus = async (id, newStatus) => {
     setLoadingId(id);
     try {
-      // Optimistic update for smooth UX
-      const billToPay = bills.find(b => b.id === id);
-      setTimeout(() => {
-        setBills(prev => prev.map(b => b.id === id ? { ...b, status: 'Paid' } : b));
-        setLoadingId(null);
-        if (onPaySuccess && billToPay) onPaySuccess(billToPay);
-      }, 1200);
-    } catch {
+      const res = await fetch(`/api/bills/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (!res.ok) throw new Error('Failed to update status');
+      
+      const updated = await res.json();
+      const updatedBill = bills.find(b => b.id === id);
+      
+      if (onPaySuccess && updatedBill) {
+        onPaySuccess({ ...updatedBill, status: newStatus });
+      } else {
+        fetchBills(); // Fallback if prop missing
+      }
+    } catch (err) {
+      console.error('Status update failed:', err);
+    } finally {
       setLoadingId(null);
     }
   };
@@ -169,8 +179,15 @@ const RecentBillsTable = ({ onPaySuccess }) => {
                     <button className="p-2 text-gray-400 hover:text-primary transition-colors hover:bg-yellow-50 rounded-lg" title="View Statement">
                       <FileText size={18} />
                     </button>
-                    {row.status !== 'Paid' && (
-                      <button onClick={() => handleMarkAsPaid(row.id)} disabled={loadingId === row.id}
+                    {row.status === 'Paid' ? (
+                      <button onClick={() => updateBillStatus(row.id, 'Upcoming')} disabled={loadingId === row.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-50 border border-yellow-200 hover:border-yellow-400 hover:text-yellow-700 text-yellow-600 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                        title="Revoke Payment">
+                        {loadingId === row.id ? <Loader2 size={14} className="animate-spin text-yellow-500" /> : <Undo2 size={14} />}
+                        <span>Revoke</span>
+                      </button>
+                    ) : (
+                      <button onClick={() => updateBillStatus(row.id, 'Paid')} disabled={loadingId === row.id}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 hover:border-green-400 hover:text-green-600 text-gray-600 rounded-lg text-xs font-semibold transition-all shadow-sm active:scale-95 disabled:opacity-50">
                         {loadingId === row.id ? <Loader2 size={14} className="animate-spin text-green-500" /> : <CheckCircle2 size={14} />}
                         <span>Pay</span>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Plus, RefreshCw } from 'lucide-react';
 
-const DueSummaryCard = ({ activeCard }) => {
+const DueSummaryCard = ({ activeCard, refreshKey }) => {
   const [totalDue, setTotalDue] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -21,7 +21,7 @@ const DueSummaryCard = ({ activeCard }) => {
 
   useEffect(() => {
     fetchSummary();
-  }, [activeCard]);
+  }, [activeCard, refreshKey]);
 
   const handleManualSync = async () => {
     setIsSyncing(true);
