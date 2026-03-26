@@ -42,30 +42,84 @@ const initialCards = [
 ];
 
 const ManageCards = () => {
-  const [cards, setCards] = useState(initialCards);
+  const [cards, setCards] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const handleAddCard = (newCard) => {
-    // Mock POST /api/cards
-    // The new card is unshifted so it appears at the beginning of the list with a nice enter animation
-    setCards([newCard, ...cards]);
+  // Fetch cards on mount
+  React.useEffect(() => {
+    fetchCards();
+  }, []);
+
+  const fetchCards = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/cards');
+      const data = await response.json();
+      
+      // Map all-lowercase from DB to camelCase for UI
+      const mappedCards = data.map(card => {
+        // Determine color based on bank name if not stored
+        let bgClass = 'from-purple-900 to-purple-600'; // Default
+        const bank = (card.bankname || '').toLowerCase();
+        if (bank.includes('sbi')) bgClass = 'from-blue-700 to-blue-500';
+        else if (bank.includes('hdfc')) bgClass = 'from-blue-900 to-blue-700';
+        else if (bank.includes('icici')) bgClass = 'from-orange-600 to-orange-400';
+        else if (bank.includes('axis')) bgClass = 'from-rose-800 to-rose-600';
+        else if (bank.includes('kotak')) bgClass = 'from-red-700 to-red-500';
+
+        return {
+          id: card.id,
+          bankName: card.bankname,
+          nickname: card.cardname,
+          last4: card.last4digits,
+          brand: 'Visa', // Default
+          creditLimit: 50000,
+          syncEnabled: true,
+          bgClass,
+          nextBillingDate: 'TBD'
+        };
+      });
+
+      setCards(mappedCards);
+    } catch (error) {
+      console.error('Error fetching cards:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleDeleteCard = (cardToDelete) => {
-    // Show native confirm for simplicity matching prompt instructions prioritizing visual flow
-    if (window.confirm(`Are you sure you want to delete ${cardToDelete.bankName} ending in ${cardToDelete.last4}?`)) {
-      // Mock DELETE /api/cards/:id
-      setCards(cards.filter(c => c.id !== cardToDelete.id));
+  const handleAddCard = (newCard) => {
+    // Refresh the list from DB to ensure consistency
+    fetchCards();
+  };
+
+  const handleDeleteCard = async (cardToDelete) => {
+    if (window.confirm(`Are you sure you want to delete ${cardToDelete.bankName} ending in ${cardToDelete.last4Digits}?`)) {
+      try {
+        const response = await fetch(`/api/cards/${cardToDelete.id}`, {
+          method: 'DELETE',
+        });
+        if (response.ok) {
+          setCards(cards.filter(c => c.id !== cardToDelete.id));
+        } else {
+          alert('Failed to delete card');
+        }
+      } catch (error) {
+        console.error('Error deleting card:', error);
+        alert('Network error while deleting card');
+      }
     }
   };
 
   const handleEditCard = (cardToEdit) => {
-    // Mock edit logic - usually opens form populated with edit data
+    // This will be handled by passing the card to AddCardModal in "edit mode"
     alert(`Edit functionality for ${cardToEdit.bankName} would open the modal with pre-filled state.`);
   };
 
-  const handleToggleSync = (cardId, newValue) => {
-    // Mock PATCH /api/cards/:id/sync
+  const handleToggleSync = async (cardId, newValue) => {
+    // In a real app we'd have a specific PATCH endpoint, 
+    // for now we'll just local update or we could use the PUT endpoint
     setCards(cards.map(c => c.id === cardId ? { ...c, syncEnabled: newValue } : c));
   };
 

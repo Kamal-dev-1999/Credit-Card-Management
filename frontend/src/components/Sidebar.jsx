@@ -68,7 +68,7 @@ const Sidebar = ({ activePage = 'dashboard', setActivePage = () => {}, onSignOut
         {/* Separator */}
         <div className="mx-3 mt-4 mb-2 h-px bg-gray-100"></div>
 
-        {isLoggedIn ? (
+        {userEmail ? (
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl">
               <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-600 to-primary flex items-center justify-center text-white font-bold text-xs shrink-0">
@@ -83,11 +83,12 @@ const Sidebar = ({ activePage = 'dashboard', setActivePage = () => {}, onSignOut
           </div>
         ) : (
           <button
-            onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+            onClick={() => window.location.href = '/api/auth/google'}
             className="flex items-center justify-center gap-2 w-11/12 bg-white hover:bg-yellow-50 text-gray-700 border border-gray-200 hover:border-primary py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95 shadow-sm"
           >
             <Mail size={16} className="text-red-500" />
             Sign in with Gmail
+            
           </button>
         )}
       </div>

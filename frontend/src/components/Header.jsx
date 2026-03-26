@@ -85,7 +85,7 @@ const Header = ({ notifications, setNotifications, unreadCount }) => {
           </div>
         ) : (
           <button
-            onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+            onClick={() => window.location.href = '/api/auth/google'}
             className="hidden sm:flex items-center gap-2 bg-white border border-dashed border-gray-300 hover:border-primary hover:bg-yellow-50 rounded-2xl px-3 py-1.5 text-xs text-gray-500 hover:text-primary font-semibold transition-colors"
           >
             <Mail size={14} className="text-red-500" />

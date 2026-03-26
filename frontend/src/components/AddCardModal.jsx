@@ -14,8 +14,10 @@ const AddCardModal = ({ isOpen, onClose, onAdd }) => {
 
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+
     if (!formData.bankName) {
       setError('Bank name is required');
       return;
@@ -24,38 +26,60 @@ const AddCardModal = ({ isOpen, onClose, onAdd }) => {
       setError('Last 4 digits must be exactly 4 numbers');
       return;
     }
-    
-    const bgClass = formData.colorTheme === 'purple' 
-      ? 'from-purple-900 to-purple-600'
-      : formData.colorTheme === 'yellow'
-      ? 'from-yellow-500 to-yellow-300'
-      : 'from-rose-700 to-red-500';
 
-    // Mock simple next billing date calculation
-    const today = new Date();
-    let nextMonth = today.getMonth() + 2; 
-    let year = today.getFullYear();
-    if (nextMonth > 12) {
-      nextMonth = 1;
-      year += 1;
+    try {
+      // 1. Get current user from local storage email
+      const userEmail = localStorage.getItem('lana_user_email');
+      if (!userEmail) {
+        setError('Please sign in with Gmail first');
+        return;
+      }
+
+      // 2. Fetch userId from backend (simple lookup)
+      const usersRes = await fetch('/api/users');
+      const users = await usersRes.json();
+      const currentUser = users.find(u => u.email === userEmail);
+      
+      if (!currentUser) {
+        setError('User not found in database. Please sign in again.');
+        return;
+      }
+
+      // 3. Prepare card data for Supabase
+      const cardData = {
+        cardName: formData.nickname || `${formData.bankName} Card`,
+        bankName: formData.bankName,
+        last4Digits: formData.last4,
+        cardType: formData.brand,
+        billingCycleDate: parseInt(formData.billingCycleDate),
+        creditLimit: 50000, 
+        userId: currentUser.id
+      };
+
+      // 4. Save to DB
+      const response = await fetch('/api/cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cardData)
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to save card');
+      }
+
+      const savedCard = await response.json();
+      
+      // Update parent state
+      onAdd(savedCard);
+
+      // Reset form
+      setFormData({ bankName: '', nickname: '', last4: '', brand: 'Visa', billingCycleDate: '1', colorTheme: 'purple' });
+      onClose();
+    } catch (err) {
+      console.error('Error saving card:', err);
+      setError(err.message || 'An error occurred while saving the card');
     }
-    const formattedDate = `${formData.billingCycleDate.padStart(2, '0')}/${nextMonth.toString().padStart(2, '0')}/${year}`;
-
-    onAdd({
-      id: Date.now().toString(),
-      bankName: formData.bankName,
-      nickname: formData.nickname || 'My Card',
-      last4: formData.last4,
-      brand: formData.brand,
-      billingCycleDate: parseInt(formData.billingCycleDate),
-      nextBillingDate: formattedDate,
-      bgClass,
-      syncEnabled: false
-    });
-
-    setFormData({ bankName: '', nickname: '', last4: '', brand: 'Visa', billingCycleDate: '1', colorTheme: 'purple' });
-    setError('');
-    onClose();
   };
 
   return (
