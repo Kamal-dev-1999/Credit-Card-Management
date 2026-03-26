@@ -71,10 +71,10 @@ app.get('/api/dashboard/graph-data', async (req, res) => {
         
         if (d <= dueDay) {
           // Cumulative growth: (current_day / due_day) * total_amount
-          graphData[d - 1][key] += (d / dueDay) * amount;
+          graphData[d - 1][key] = (graphData[d - 1][key] || 0) + Math.round((d / dueDay) * amount);
         } else {
           // Stay flat after due date
-          graphData[d - 1][key] += amount;
+          graphData[d - 1][key] = (graphData[d - 1][key] || 0) + amount;
         }
       }
     });

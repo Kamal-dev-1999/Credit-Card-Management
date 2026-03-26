@@ -66,7 +66,7 @@ const DueDatesGraph = ({ refreshKey }) => {
   const fetchGraphData = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/dashboard/graph-data');
+      const res = await fetch('http://127.0.0.1:5000/api/dashboard/graph-data?v=1');
       const json = await res.json();
       setGraphData(json.data || []);
       setSeriesKeys(json.keys || []);
@@ -102,7 +102,7 @@ const DueDatesGraph = ({ refreshKey }) => {
         <h2 className="text-gray-400 font-bold text-[10px] uppercase tracking-widest hidden sm:block">Spending Cycle & Due Dates</h2>
       </div>
       
-      <div className="flex-1 w-full h-[250px] relative">
+      <div className="flex-1 w-full min-h-[300px] relative min-w-0">
         {loading && graphData.length === 0 ? (
           <div className="absolute inset-0 flex items-center justify-center text-gray-300 font-bold text-xs uppercase tracking-widest">
             Loading cycle data...
@@ -112,8 +112,8 @@ const DueDatesGraph = ({ refreshKey }) => {
             Sync your emails to see your spending cycle
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={filteredData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height="300" aspect={3}>
+            <AreaChart data={filteredData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
               <defs>
                 {seriesKeys.map((key, idx) => (
                   <linearGradient key={`grad-${key}`} id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
