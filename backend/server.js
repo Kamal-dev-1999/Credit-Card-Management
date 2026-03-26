@@ -128,6 +128,30 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
+const { discoverCardsForUser } = require('./src/controllers/discover.controller');
+
+// Auto-Discover Cards from Gmail
+app.post('/api/cards/discover', async (req, res) => {
+  try {
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, email, google_refresh_token')
+      .not('google_refresh_token', 'is', null)
+      .limit(1); // For now, we discover for the first authenticated user found
+
+    if (error) throw error;
+    if (!users || users.length === 0) {
+      return res.status(404).json({ error: 'No authenticated user found. Please connect Gmail first.' });
+    }
+
+    const result = await discoverCardsForUser(users[0]);
+    res.json(result);
+  } catch (err) {
+    console.error('❌ Discovery error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Cards
 app.get('/api/cards', async (req, res) => {
   try {

@@ -52,16 +52,19 @@ const extractBody = (payload) => {
 };
 
 /**
- * Searches the user's Gmail for credit card statement/bill emails
- * from the last 30 days and returns an array of { subject, body, messageId }.
+ * Searches the user's Gmail for credit card statement/bill emails.
+ * Defaults to 30 days for sync, can be increased for card discovery.
+ * 
+ * @param {string} refreshToken 
+ * @param {number} daysLimit - How many days to scan (default 30)
  */
-const fetchCreditCardEmails = async (refreshToken) => {
+const fetchCreditCardEmails = async (refreshToken, daysLimit = 30) => {
   const gmail = createGmailClient(refreshToken);
 
-  // Build a date filter for the last 30 days
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const afterTimestamp = Math.floor(thirtyDaysAgo.getTime() / 1000);
+  // Build a date filter
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - daysLimit);
+  const afterTimestamp = Math.floor(startDate.getTime() / 1000);
 
   // Targeted query: only emails FROM known bank domains with billing subjects
   const query = [
@@ -79,7 +82,7 @@ const fetchCreditCardEmails = async (refreshToken) => {
   const listResponse = await gmail.users.messages.list({
     userId: 'me',
     q: query,
-    maxResults: 20,
+    maxResults: 100, // Increased for discovery runs
   });
 
   const messages = listResponse.data.messages || [];

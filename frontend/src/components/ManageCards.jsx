@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Mail } from 'lucide-react';
+import { Plus, Mail, Sparkles, Loader2 } from 'lucide-react';
 import ManageCardItem from './ManageCardItem';
 import AddCardModal from './AddCardModal';
 
@@ -44,6 +44,7 @@ const initialCards = [
 const ManageCards = () => {
   const [cards, setCards] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDiscovering, setIsDiscovering] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Fetch cards on mount
@@ -86,6 +87,25 @@ const ManageCards = () => {
       console.error('Error fetching cards:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDiscover = async () => {
+    setIsDiscovering(true);
+    try {
+      const resp = await fetch('/api/cards/discover', { method: 'POST' });
+      const result = await resp.json();
+      if (result.success) {
+        alert(`✨ Discovery complete! Found and added ${result.newCardsFound} new cards.`);
+        fetchCards();
+      } else {
+        alert('Discovery failed: ' + result.error);
+      }
+    } catch (err) {
+      console.error('Discovery error:', err);
+      alert('Network error during discovery.');
+    } finally {
+      setIsDiscovering(false);
     }
   };
 
@@ -135,7 +155,7 @@ const ManageCards = () => {
         <div className="flex items-center gap-3 w-full sm:w-auto">
           {!localStorage.getItem('lana_user_email') ? (
             <button 
-              onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
+              onClick={() => window.location.href = '/api/auth/google'}
               className="flex items-center justify-center gap-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-5 py-3 rounded-xl font-semibold text-sm transition-transform active:scale-95 shadow-sm shrink-0 flex-1 sm:flex-auto"
             >
               <Mail size={18} className="text-red-500" />
@@ -147,6 +167,19 @@ const ManageCards = () => {
               Gmail Connected
             </div>
           )}
+
+          <button 
+            onClick={handleDiscover}
+            disabled={isDiscovering}
+            className={`flex items-center justify-center gap-2 bg-white hover:bg-yellow-50 text-gray-700 border border-gray-200 hover:border-primary px-5 py-3 rounded-xl font-semibold text-sm transition-all active:scale-95 shadow-sm shrink-0 flex-1 sm:flex-auto ${isDiscovering ? 'opacity-70 cursor-not-allowed' : ''}`}
+          >
+            {isDiscovering ? (
+              <Loader2 size={18} className="animate-spin text-primary" />
+            ) : (
+              <Sparkles size={18} className="text-primary" />
+            )}
+            {isDiscovering ? 'Scanning Gmail...' : 'Auto-Discover'}
+          </button>
 
           <button 
             onClick={() => setIsModalOpen(true)}
