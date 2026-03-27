@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const supabase = require('./src/config/supabase');
+const { supabase } = require('./src/config/supabase');
 const cron = require('node-cron');
 
 const COLORS = ['#ffb000', '#3b82f6', '#ef4444', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d2', '#84cc16'];
@@ -204,6 +204,64 @@ app.get('/api/test/parse-emails', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+const { syncAIInsights, generateDailyInsights } = require('./src/services/geminiService');
+
+// AI Insights Endpoint: Fetch the most recent stored insights
+app.get('/api/ai/latest', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('ai_insights')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) throw error;
+    
+    // If no insights exist, generate them for the first time
+    if (!data || data.length === 0) {
+      console.log('🤖 No AI insights found in DB. Generating first one...');
+      try {
+        const fresh = await syncAIInsights();
+        return res.json(fresh);
+      } catch (genErr) {
+        console.error('❌ AI generation failed:', genErr.message);
+        // Return fallback only if generation truly fails
+        return res.status(503).json({ 
+          error: 'AI insights generation failed', 
+          reason: genErr.message,
+          fallback: {
+            daily_quote: "The first step to financial freedom is knowing your numbers. Sync your data to see your pulse.",
+            projected_savings: 0,
+            card_insights: [],
+            health_explanation: "You haven't added any cards yet. Let's start building your financial profile!"
+          }
+        });
+      }
+    }
+
+    res.json(data[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Trigger manual AI generation
+app.post('/api/ai/sync', async (req, res) => {
+  try {
+    const fresh = await syncAIInsights();
+    res.json(fresh);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Cron: Sync AI Insights every 24 hours at midnight
+cron.schedule('0 0 * * *', () => {
+  console.log('⏰ Cron fired: Generating daily AI insights...');
+  syncAIInsights();
+});
+console.log('⏰ Cron job scheduled: AI Insights every 24 hours (Midnight)');
 
 // Users
 app.get('/api/users', async (req, res) => {

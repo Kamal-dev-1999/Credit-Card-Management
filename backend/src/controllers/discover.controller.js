@@ -5,7 +5,7 @@
 
 'use strict';
 
-const supabase = require('../config/supabase');
+const { supabase } = require('../config/supabase');
 const { fetchCreditCardEmails } = require('../services/gmailService');
 const { processEmail } = require('../utils/parserRules');
 

@@ -1,5 +1,5 @@
 const { google } = require('googleapis');
-const supabase = require('../config/supabase');
+const { supabase } = require('../config/supabase');
 require('dotenv').config();
 
 // Configure the Google OAuth2 client

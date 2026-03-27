@@ -22,6 +22,7 @@ model Card {
   cardName           String
   last4Digits        String
   billingCycleDate   Int
+  creditLimit        Float?   // Credit limit in rupees (optional for now)
   user               User     @relation(fields: [userId], references: [id])
   bills              Bill[]
 }
