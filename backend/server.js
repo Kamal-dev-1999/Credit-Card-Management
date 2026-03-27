@@ -2,6 +2,14 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const supabase = require('./src/config/supabase');
+const cron = require('node-cron');
+
+const COLORS = ['#ffb000', '#3b82f6', '#ef4444', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d2', '#84cc16'];
+const getUniqueColor = (str) => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  return COLORS[Math.abs(hash) % COLORS.length];
+};
 
 dotenv.config();
 
@@ -21,7 +29,6 @@ const authRoutes = require('./src/routes/auth.routes');
 app.use('/api/auth', authRoutes);
 
 // Sync Controller & Cron Job
-const cron = require('node-cron');
 const { runSync } = require('./src/controllers/sync.controller');
 
 // Manual trigger route (for testing)
@@ -98,7 +105,6 @@ app.get('/api/dashboard/graph-data', async (req, res) => {
 // Dashboard Summary API — replaces mock data on the frontend
 app.get('/api/dashboard/summary', async (req, res) => {
   try {
-    // Total unpaid dues
     const { data: bills, error: billErr } = await supabase
       .from('bills')
       .select('id, amountdue, duedate, statementdate, status, cardid, cards(cardname, last4digits, bankname)')
@@ -115,7 +121,31 @@ app.get('/api/dashboard/summary', async (req, res) => {
       bills: bills || [],
     });
   } catch (err) {
-    console.error('❌ Dashboard summary error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/dashboard/dues-distribution', async (req, res) => {
+  try {
+    const { data: bills, error } = await supabase
+      .from('bills')
+      .select('amountdue, status, cards(cardname, id)')
+      .neq('status', 'Paid');
+
+    if (error) throw error;
+
+    const distribution = {};
+    (bills || []).forEach(b => {
+      const name = b.cards?.cardname || 'Other Card';
+      const id = b.cards?.id || 'other';
+      if (!distribution[name]) {
+        distribution[name] = { name, value: 0, color: getUniqueColor(id) };
+      }
+      distribution[name].value += (b.amountdue || 0);
+    });
+
+    res.json(Object.values(distribution).filter(d => d.value > 0));
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

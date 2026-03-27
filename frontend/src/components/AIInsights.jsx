@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles, TrendingUp, Activity } from 'lucide-react';
 import CardInsightTile from './CardInsightTile';
+import CreditHealthCard from './CreditHealthCard';
 
 // Mock Data
 const activeCards = [
@@ -80,31 +81,10 @@ const AIInsights = () => {
           transition={{ delay: 0.3 }}
           className="flex-[1] min-w-[300px]"
         >
-          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-gray-100 h-full flex flex-col relative overflow-hidden">
-            <div className="flex items-center gap-2 mb-6 text-gray-500">
-              <Activity size={18} />
-              <h3 className="font-bold text-sm tracking-wide">Predictive Health Score</h3>
-            </div>
-            
-            <div className="flex-1 flex flex-col items-center justify-center py-6">
-              <div className="w-32 h-32 rounded-full bg-gradient-to-br from-green-400 to-green-600 shadow-lg shadow-green-200 flex items-center justify-center relative mb-6">
-                 <div className="absolute inset-2 bg-white rounded-full flex flex-col items-center justify-center">
-                    <span className="text-4xl font-extrabold text-gray-800">A-</span>
-                 </div>
-                 {/* Decorative radar rings */}
-                 <div className="absolute inset-0 border-2 border-green-400/30 rounded-full animate-ping" style={{ animationDuration: '3s' }}></div>
-              </div>
-              
-              <div className="flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg border border-green-100 mb-4">
-                 <TrendingUp size={16} className="text-green-600" />
-                 <span className="text-xs font-bold text-green-700 uppercase tracking-widest">Trending Up</span>
-              </div>
-              
-              <p className="text-sm text-gray-600 text-center font-medium px-2 leading-relaxed">
-                Your score increased because you maintained on-time payments and kept the <span className="font-bold text-gray-800">Purple Zota</span> balance very low. Great job!
-              </p>
-            </div>
-          </div>
+          <CreditHealthCard 
+            utilization={28} 
+            description="Your score increased because you maintained on-time payments and kept the Purple Zota balance very low. Great job!" 
+          />
         </motion.div>
         
       </div>

@@ -8,6 +8,7 @@ import CreditHealthCard from './components/CreditHealthCard';
 import AITipCard from './components/AITipCard';
 import RecentBillsTable from './components/RecentBillsTable';
 import ManageCards from './components/ManageCards';
+import DuesBreakdownChart from './components/DuesBreakdownChart';
 
 import AIInsights from './components/AIInsights';
 import GlobalChatbot from './components/GlobalChatbot';
@@ -48,19 +49,22 @@ function App() {
         <div className="animate-in fade-in duration-500">
           {/* Top Section */}
           <div className="flex flex-col xl:flex-row gap-6 lg:gap-8 mb-8">
-            {/* Left Column - Cards Stack */}
-            <div className="w-full xl:w-[340px] shrink-0 xl:h-[480px] h-auto mb-4 xl:mb-0">
-              <CardStack onCardSelect={setActiveCard} setActivePage={setActivePage} />
+            {/* Left Column - Cards Stack & Breakdown */}
+            <div className="w-full xl:w-[340px] shrink-0 flex flex-col gap-6 order-2 xl:order-1">
+              <div className="xl:h-[480px] h-auto">
+                <CardStack onCardSelect={setActiveCard} setActivePage={setActivePage} />
+              </div>
+              <DuesBreakdownChart refreshKey={refreshKey} />
             </div>
             
             {/* Right Column - Top Stats & Widgets */}
             <div className="flex-1 flex flex-col gap-6 lg:gap-8 min-w-0">
               
-               <div className="flex flex-col gap-6 lg:gap-8 lg:min-h-[220px] min-w-0">
+               <div className="flex flex-col md:flex-row gap-6 lg:gap-8 lg:min-h-[220px] min-w-0">
                  <div className="flex-[2] min-w-0">
                    <DueSummaryCard activeCard={activeCard} refreshKey={refreshKey} />
                  </div>
-                 <div className="flex-[1] min-w-[220px]">
+                 <div className="flex-[1] min-w-0">
                    <CreditHealthCard utilization={28} />
                  </div>
                </div>
