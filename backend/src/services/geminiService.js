@@ -113,6 +113,50 @@ const syncAIInsights = async () => {
         
         const { error } = await supabaseAdmin.from('ai_insights').insert([insights]);
         if (error) throw error;
+        
+        // Create notifications for all users with cards
+        const { data: users } = await supabaseAdmin
+            .from('cards')
+            .select('userid')
+            .distinct()
+            .catch(() => ({}));
+
+        if (users && users.length > 0) {
+          const uniqueUserIds = [...new Set(users.map(u => u.userid || u.user_id).filter(Boolean))];
+          
+          for (const userId of uniqueUserIds) {
+            // Get user email from users table
+            const { data: userData } = await supabaseAdmin
+              .from('users')
+              .select('email')
+              .eq('id', userId)
+              .limit(1)
+              .catch(() => ({}));
+
+            if (userData?.[0]?.email) {
+              const userEmail = userData[0].email;
+              const notif = {
+                useremail: userEmail,
+                type: 'ai_insight',
+                icon: 'sparkles',
+                title: 'AI Insights Generated',
+                message: `✨ New daily insights ready: "${insights.daily_quote.substring(0, 50)}..."`,
+                read: false,
+                actionurl: '/ai-insights',
+                createdat: new Date().toISOString()
+              };
+              
+              await supabaseAdmin.from('notifications').insert([notif]).catch(err => {
+                console.warn(`Could not create AI notification for user ${userEmail}:`, err.message);
+              });
+              
+              console.log(`✅ AI insights notification created for: ${userEmail}`);
+            }
+          }
+          
+          console.log(`✅ AI insights notifications created for ${uniqueUserIds.length} user(s)`);
+        }
+        
         console.log("✅ AI Insights synchronized and stored for the next 24 hours.");
         return insights;
     } catch (err) {

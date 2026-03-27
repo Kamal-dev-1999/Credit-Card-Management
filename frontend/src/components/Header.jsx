@@ -27,7 +27,7 @@ const Header = ({ notifications, setNotifications, unreadCount }) => {
   };
 
   return (
-    <div className="flex justify-between items-center mb-8 relative z-30">
+    <div className="flex justify-between items-center mb-8 relative z-[1000]">
       {/* Mobile left side */}
       <div className="flex items-center gap-3 lg:hidden">
         <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 to-green-500 flex items-center justify-center shadow-sm">
@@ -42,16 +42,27 @@ const Header = ({ notifications, setNotifications, unreadCount }) => {
       </div>
 
       {/* Right side icons */}
-      <div className="flex items-center gap-3">
-        {/* Bell Icon */}
+      <div className="flex items-center gap-4">
+        {/* Bell Icon - Enhanced & Prominent */}
         <div className="relative">
           <button
             onClick={() => setIsNotifOpen(!isNotifOpen)}
-            className="w-10 h-10 rounded-full bg-white border border-gray-100 shadow-sm flex items-center justify-center text-gray-500 hover:text-primary transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-400"
+            className={`relative w-14 h-14 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg hover:shadow-xl ${
+              unreadCount > 0
+                ? 'bg-gradient-to-br from-yellow-400 to-yellow-500 text-white scale-110 hover:scale-125'
+                : 'bg-white border border-gray-200 text-gray-600 hover:text-primary hover:border-primary'
+            }`}
+            title={unreadCount > 0 ? `${unreadCount} new notification${unreadCount !== 1 ? 's' : ''}` : 'Notifications'}
           >
-            <Bell size={20} />
+            <Bell size={24} />
+            
             {unreadCount > 0 && (
-              <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>
+              <>
+                <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full border-3 border-white flex items-center justify-center text-white text-xs font-bold shadow-lg animate-bounce">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+                <span className="absolute inset-0 rounded-full border-2 border-yellow-300 animate-pulse opacity-75"></span>
+              </>
             )}
           </button>
 

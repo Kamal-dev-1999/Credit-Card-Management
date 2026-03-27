@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import CardStack from './components/CardStack';
@@ -17,28 +17,52 @@ function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [activeCard, setActiveCard] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [notifications, setNotifications] = useState([]);
 
   const refreshDashboard = () => setRefreshKey(prev => prev + 1);
-  
-  // Notification State
-  const [notifications, setNotifications] = useState([
-    { id: 1, type: 'info', icon: 'money', title: 'Statement Fetched', message: 'HDFC Bank - ₹14,450.20', time: '10m ago', read: false },
-    { id: 2, type: 'warning', icon: 'alert', title: 'Reminder', message: 'Red Prepaid Card due in 48 hours!', time: '2h ago', read: false },
-    { id: 3, type: 'suggestion', icon: 'sparkles', title: 'AI Suggestion', message: 'You could save ₹1,500 by switching to Auto-Pay.', time: '1d ago', read: true },
-  ]);
 
-  const handlePaySuccess = (bill) => {
-    const newNotif = {
-      id: Date.now(),
-      type: 'success',
-      icon: 'success',
-      title: 'Payment Recorded',
-      message: `Successfully updated ₹${bill.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} for ${bill.cardName}.`,
-      time: 'Just now',
-      read: false
-    };
-    setNotifications(prev => [newNotif, ...prev]);
-    refreshDashboard();
+  // Fetch notifications from backend
+  const fetchNotifications = async () => {
+    try {
+      const userEmail = localStorage.getItem('lana_user_email');
+      const res = await fetch('http://127.0.0.1:5000/api/notifications', {
+        headers: {
+          'x-user-email': userEmail || ''
+        }
+      });
+      const data = await res.json();
+      setNotifications(data.notifications || []);
+      console.log(`📬 Fetched ${data.notifications?.length || 0} notifications`);
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
+    }
+  };
+
+  // Fetch notifications on component mount
+  useEffect(() => {
+    fetchNotifications();
+    // Refresh notifications every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const markAllAsRead = async () => {
+    try {
+      const userEmail = localStorage.getItem('lana_user_email');
+      await fetch('http://127.0.0.1:5000/api/notifications/mark-all-read', {
+        method: 'POST',
+        headers: {
+          'x-user-email': userEmail || ''
+        }
+      });
+      fetchNotifications(); // Refresh notifications
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
+  };
+
+  const addNotification = (notif) => {
+    setNotifications(prev => [notif, ...prev]);
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -81,7 +105,12 @@ function App() {
           
           {/* Bottom Area - History Table */}
           <div className="w-full pb-8">
-            <RecentBillsTable onPaySuccess={handlePaySuccess} refreshKey={refreshKey} />
+            <RecentBillsTable onPaySuccess={async (bill) => {
+              refreshDashboard();
+              // Notification will be created by backend when status is updated
+               // Fetch notifications on next refresh
+              setTimeout(() => fetchNotifications(), 1000);
+            }} refreshKey={refreshKey} />
           </div>
         </div>
       );

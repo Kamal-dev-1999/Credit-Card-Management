@@ -12,7 +12,8 @@ model User {
   whatsappNumber     String?
   googleRefreshToken String?   // Stores the OAuth refresh token
   cards              Card[]
-  expenses       Expense[]
+  expenses           Expense[]
+  notifications      Notification[]
 }
 
 model Card {
@@ -43,5 +44,18 @@ model Expense {
   category  String
   amount    Float
   date      DateTime
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   // "due" | "payment" | "ai_insight" | "statement" | "alert"
+  icon      String   // "alert" | "money" | "sparkles" | "success"
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  actionUrl String?
+  createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
 }

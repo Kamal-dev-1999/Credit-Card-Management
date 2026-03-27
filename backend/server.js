@@ -28,6 +28,10 @@ app.get('/api/health', (req, res) => {
 const authRoutes = require('./src/routes/auth.routes');
 app.use('/api/auth', authRoutes);
 
+// Notification Routes
+const notificationRoutes = require('./src/routes/notification.routes.js');
+app.use('/api/notifications', notificationRoutes);
+
 // Sync Controller & Cron Job
 const { runSync } = require('./src/controllers/sync.controller');
 
@@ -408,6 +412,50 @@ app.patch('/api/bills/:id/status', async (req, res) => {
       .select();
 
     if (error) throw error;
+
+    // Get bill with card details to find user email and create notification
+    const bill = data[0];
+    if (status === 'Paid' && bill?.cardid) {
+      const { data: cardData } = await supabase
+        .from('cards')
+        .select('userid, cardname')
+        .eq('id', bill.cardid)
+        .limit(1);
+
+      if (cardData?.[0]?.userid) {
+        const userId = cardData[0].userid;
+        const cardName = cardData[0].cardname;
+        
+        // Get user email from users table
+        const { data: userData } = await supabase
+          .from('users')
+          .select('email')
+          .eq('id', userId)
+          .limit(1);
+
+        if (userData?.[0]?.email) {
+          const userEmail = userData[0].email;
+          
+          // Create notification
+          const notif = {
+            useremail: userEmail,
+            type: 'payment',
+            icon: 'success',
+            title: 'Payment Recorded',
+            message: `Successfully recorded ₹${bill.amountdue?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0'} payment for ${cardName}`,
+            read: false,
+            createdat: new Date().toISOString()
+          };
+          
+          await supabase.from('notifications').insert([notif]).catch(err => {
+            console.warn('Could not create notification:', err.message);
+          });
+          
+          console.log(`✅ Payment notification created for user: ${userEmail}`);
+        }
+      }
+    }
+
     res.json(data[0]);
   } catch (error) {
     console.error('❌ Bill status update error:', error.message);
