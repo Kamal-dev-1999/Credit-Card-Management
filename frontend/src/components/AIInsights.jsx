@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Sparkles, TrendingUp, Activity, RefreshCw } from 'lucide-react';
 import CardInsightTile from './CardInsightTile';
 import CreditHealthCard from './CreditHealthCard';
+import FinancialNewsCard from './FinancialNewsCard';
 
 const AIInsights = () => {
   const [data, setData] = useState(null);
@@ -98,10 +99,10 @@ const AIInsights = () => {
       </motion.div>
 
       {/* Grid Layout for Intel & Health Score */}
-      <div className="flex flex-col xl:flex-row gap-6 lg:gap-8 min-h-0">
+      <div className="flex flex-col xl:flex-row gap-4 md:gap-6 lg:gap-8 w-full">
         
         {/* Section B: Card-Specific Intel Grid */}
-        <div className="flex-[2] grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 min-w-0">
+        <div className="flex-[2] grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 lg:gap-8 w-full xl:min-w-0">
            {(insights.card_insights || []).length > 0 ? (
              insights.card_insights.map((card, idx) => (
                <motion.div 
@@ -122,17 +123,25 @@ const AIInsights = () => {
            )}
         </div>
 
-        {/* Section C: Predictive Financial Health Score */}
+        {/* Section C: Sidebar - Health Score & News */}
         <motion.div 
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
-          className="flex-[1] min-w-[300px]"
+          className="flex-[1] w-full xl:w-auto flex flex-col gap-6"
         >
-          <CreditHealthCard 
-            utilization={28} 
-            description={insights.health_explanation}
-          />
+          {/* Predictive Health Card */}
+          <div className="h-auto">
+            <CreditHealthCard 
+              utilization={28} 
+              description={insights.health_explanation}
+            />
+          </div>
+
+          {/* Financial News Feed Card */}
+          <div className="h-[400px] md:h-[450px]">
+            <FinancialNewsCard />
+          </div>
         </motion.div>
         
       </div>

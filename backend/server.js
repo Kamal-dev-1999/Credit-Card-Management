@@ -263,6 +263,20 @@ cron.schedule('0 0 * * *', () => {
 });
 console.log('⏰ Cron job scheduled: AI Insights every 24 hours (Midnight)');
 
+// Financial News Endpoint
+const { getFinancialNews } = require('./src/services/newsService');
+
+app.get('/api/news/financial', async (req, res) => {
+  try {
+    console.log('📰 Fetching financial news...');
+    const news = await getFinancialNews();
+    res.json({ success: true, articles: news, count: news.length });
+  } catch (err) {
+    console.error('❌ News fetch error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Users
 app.get('/api/users', async (req, res) => {
   try {
