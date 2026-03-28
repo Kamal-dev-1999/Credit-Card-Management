@@ -134,8 +134,9 @@ app.get('/api/dashboard/summary', async (req, res) => {
   try {
     const userEmail = req.headers['x-user-email'] || 'default-user';
     const cacheKey = `user:${userEmail}:summary`;
+    const bypassCache = req.query.nocache === 'true'; // Allow bypassing cache with ?nocache=true
 
-    // Use Cache-Aside pattern
+    // Use Cache-Aside pattern, but skip if bypassing cache
     const data = await getCachedData(cacheKey, async () => {
       const { data: bills, error: billErr } = await supabase
         .from('bills')
@@ -152,7 +153,7 @@ app.get('/api/dashboard/summary', async (req, res) => {
         totalDue,
         bills: bills || [],
       };
-    }, 600); // Cache for 10 minutes
+    }, bypassCache ? 0 : 600); // Skip cache (0 sec) if nocache=true, else cache for 10 minutes
 
     res.json(data);
   } catch (err) {
@@ -203,13 +204,14 @@ app.get('/api/test/parse-emails', async (req, res) => {
       return res.status(404).json({ error: 'No authenticated user found. Please connect Gmail first.' });
     }
 
-    console.log(`\n🚀 Found ${users.length} authenticated user(s):`);
-    users.forEach(u => console.log(`  - ${u.email}`));
+    console.log(`🚀 Fetching emails for authenticated user(s)`);
 
     const allResults = [];
+    let billsSaved = 0;
+    let billsSkipped = 0;
 
     for (const user of users) {
-      console.log(`\n📬 Fetching emails for: ${user.email}`);
+      console.log(`📬 Fetching emails...`);
       const { fetchCreditCardEmails } = require('./src/services/gmailService');
       const { parseEmailWithAI } = require('./src/services/aiParser');
 
@@ -220,19 +222,91 @@ app.get('/api/test/parse-emails', async (req, res) => {
       }
 
       for (const email of emails) {
-        console.log(`\n  🤖 Parsing: "${email.subject}"`);
         const parsed = await parseEmailWithAI(email);
         if (parsed) {
-          console.log('  ✅ Parsed result:', JSON.stringify(parsed, null, 2));
+          //  ✅ Email parsed successfully
           allResults.push({ user: user.email, ...parsed, _source: email.subject });
+
+          // ✅ NOW SAVE TO DATABASE
+          if (parsed.bankName && parsed.amountDue) {
+            // Saving bill to database...
+            
+            // Find the card for this user with matching bank
+            const { data: cards, error: cardErr } = await supabase
+              .from('cards')
+              .select('id')
+              .eq('userid', user.id)
+              .eq('bankname', parsed.bankName)
+              .limit(1);
+
+            if (cardErr) {
+              console.error(`    ❌ Error finding card: ${cardErr.message}`);
+              billsSkipped++;
+              continue;
+            }
+
+            if (!cards || cards.length === 0) {
+              console.warn(`    ⚠️  No card found for ${parsed.bankName}. Skipping bill.`);
+              billsSkipped++;
+              continue;
+            }
+
+            const cardId = cards[0].id;
+
+            // Check if this bill already exists (by cardid + duedate + amount)
+            const { data: existingBills } = await supabase
+              .from('bills')
+              .select('id')
+              .eq('cardid', cardId)
+              .eq('amountdue', parsed.amountDue)
+              .eq('duedate', parsed.dueDate || null)
+              .limit(1);
+
+            if (existingBills && existingBills.length > 0) {
+              console.log(`    ⏭️  Bill already exists, skipping.`);
+              billsSkipped++;
+              continue;
+            }
+
+            // Insert new bill
+            const { error: billErr } = await supabase
+              .from('bills')
+              .insert([{
+                cardid: cardId,
+                amountdue: parsed.amountDue,
+                duedate: parsed.dueDate || new Date().toISOString().split('T')[0],
+                statementdate: parsed.statementDate || new Date().toISOString().split('T')[0],
+                status: 'Unpaid'
+              }]);
+
+            if (billErr) {
+              console.error(`    ❌ Error saving bill: ${billErr.message}`);
+              billsSkipped++;
+            } else {
+              // Bill saved successfully
+              billsSaved++;
+              
+              // Clear cache now that we've updated bills
+              await deleteCache(`user:${user.email}:summary`);
+            }
+          } else {
+            console.log(`  ⏭️  No billing data to save (amount or bank missing)`);
+            billsSkipped++;
+          }
         } else {
           console.log('  ⏭️  Skipped (irrelevant or parse failed)');
         }
       }
     }
 
-    console.log(`\n🎯 Total parsed: ${allResults.length} across ${users.length} account(s)`);
-    res.json({ users: users.map(u => u.email), parsed_count: allResults.length, results: allResults });
+    console.log(`🎯 Email sync completed`);
+    res.json({ 
+      users: users.map(u => u.email), 
+      parsed_count: allResults.length,
+      bills_saved: billsSaved,
+      bills_skipped: billsSkipped,
+      results: allResults 
+    });
 
   } catch (err) {
     console.error('❌ Test route error:', err);
@@ -247,6 +321,7 @@ app.get('/api/ai/latest', async (req, res) => {
   try {
     const userEmail = req.headers['x-user-email'] || 'default-user';
     const cacheKey = `user:${userEmail}:daily_insights`;
+    const bypassCache = req.query.nocache === 'true';
 
     const data = await getCachedData(cacheKey, async () => {
       const { data, error } = await supabase
@@ -279,7 +354,7 @@ app.get('/api/ai/latest', async (req, res) => {
       }
 
       return data[0];
-    }, 3600); // Cache for 1 hour
+    }, bypassCache ? 0 : 3600); // Bypass cache if nocache=true, else cache for 1 hour
 
     res.json(data);
   } catch (err) {
@@ -345,18 +420,30 @@ const { discoverCardsForUser } = require('./src/controllers/discover.controller'
 // Auto-Discover Cards from Gmail
 app.post('/api/cards/discover', async (req, res) => {
   try {
+    console.log('🔍 [Discover] Request received for email sync');
+    
     const { data: users, error } = await supabase
       .from('users')
       .select('id, email, google_refresh_token')
       .not('google_refresh_token', 'is', null)
       .limit(1); // For now, we discover for the first authenticated user found
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ [Discover] DB error:', error.message);
+      throw error;
+    }
+    
+    console.log(`📧 [Discover] Found ${users?.length || 0} users with gmail token`);
+    
     if (!users || users.length === 0) {
+      console.warn('⚠️  [Discover] No authenticated user found. Please connect Gmail first.');
       return res.status(404).json({ error: 'No authenticated user found. Please connect Gmail first.' });
     }
 
+    console.log(`🔄 [Discover] Starting email discovery...`);
     const result = await discoverCardsForUser(users[0]);
+    
+    console.log(`✅ [Discover] Discovery complete:`, result);
     res.json(result);
   } catch (err) {
     console.error('❌ Discovery error:', err.message);
@@ -369,12 +456,13 @@ app.get('/api/cards', async (req, res) => {
   try {
     const userEmail = req.headers['x-user-email'] || 'default-user';
     const cacheKey = `user:${userEmail}:cards`;
+    const bypassCache = req.query.nocache === 'true';
 
     const data = await getCachedData(cacheKey, async () => {
       const { data: cards, error } = await supabase.from('cards').select('*');
       if (error) throw error;
       return cards;
-    }, 600); // Cache for 10 minutes
+    }, bypassCache ? 0 : 600); // Bypass cache if nocache=true, else cache for 10 minutes
 
     res.json(data);
   } catch (error) {
@@ -415,7 +503,9 @@ app.post('/api/cards', async (req, res) => {
 app.put('/api/cards/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { cardName, bankName, last4Digits, cardType, creditLimit, colorTheme } = req.body;
+    const { cardName, bankName, last4Digits, cardType, billingCycleDate, colorTheme } = req.body;
+    const userEmail = req.headers['x-user-email'] || 'default-user';
+
     const { data, error } = await supabase
       .from('cards')
       .update({ 
@@ -423,12 +513,18 @@ app.put('/api/cards/:id', async (req, res) => {
         bankname: bankName, 
         last4digits: last4Digits,
         cardtype: cardType,
+        billingcycledate: billingCycleDate || 1,
         colortheme: colorTheme
       })
       .eq('id', id)
       .select();
 
     if (error) throw error;
+
+    // ✅ Clear cache so edits appear immediately
+    await deleteCache(`user:${userEmail}:cards`);
+    await deleteCache(`user:${userEmail}:summary`);
+
     res.json(data[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -516,7 +612,7 @@ app.patch('/api/bills/:id/status', async (req, res) => {
           
           try {
             await supabase.from('notifications').insert([notif]);
-            console.log(`✅ Payment notification created for user: ${realUserEmail}`);
+            console.log(`✅ Payment notification created`);
           } catch (notifErr) {
             console.warn('Could not create notification:', notifErr.message);
           }
@@ -555,23 +651,42 @@ app.post('/api/chatbot/ask', async (req, res) => {
       return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
     }
 
-    console.log(`🤖 Chatbot query from ${userEmail}: "${message}"`);
+    // ✅ Get current user ID first
+    const { data: userData, error: userErr } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', userEmail)
+      .single();
 
-    // Get user's financial context
-    const { data: bills } = await supabase
-      .from('bills')
-      .select('amountdue, duedate, status, cards(bankname, cardname)')
-      .eq('status', 'Unpaid')
-      .limit(5);
+    if (!userData) {
+      return res.status(401).json({ error: 'User not found. Please sign in with Gmail first.' });
+    }
 
+    const userId = userData.id;
+
+    // Get user's cards (only their cards)
     const { data: cards } = await supabase
       .from('cards')
       .select('*')
-      .limit(10);
+      .eq('userid', userId);
 
+    // Get user's bills (linked through their cards)
+    const cardIds = (cards || []).map(c => c.id);
+    let bills = [];
+    if (cardIds.length > 0) {
+      const { data: billData } = await supabase
+        .from('bills')
+        .select('*')
+        .in('cardid', cardIds)
+        .order('duedate', { ascending: true });
+      bills = billData || [];
+    }
+
+    // Get user's expenses
     const { data: expenses } = await supabase
       .from('expenses')
-      .select('amount, category, date')
+      .select('*')
+      .eq('userid', userId)
       .limit(20);
 
     // Retrieve last 10 messages from chatbot history for context
@@ -587,11 +702,30 @@ app.post('/api/chatbot/ask', async (req, res) => {
       .map(msg => `${msg.role === 'user' ? 'User' : 'Lana'}: ${msg.message}`)
       .join('\n');
 
-    // Calculate summary stats
-    const totalUnpaidAmount = (bills || []).reduce((sum, b) => sum + (b.amountdue || 0), 0);
-    const nearestDueDate = (bills || []).length > 0 
-      ? bills.reduce((nearest, b) => new Date(b.duedate) < new Date(nearest.duedate) ? b : nearest).duedate
+    // Calculate summary stats from YOUR bills
+    const unpaidBills = bills.filter(b => b.status === 'Unpaid' || b.status === 'unpaid');
+    const totalUnpaidAmount = unpaidBills.reduce((sum, b) => sum + (b.amountdue || b.amount_due || 0), 0);
+    const nearestDueDate = unpaidBills.length > 0 
+      ? unpaidBills.reduce((nearest, b) => {
+          const bDate = new Date(b.duedate || b.due_date);
+          const nDate = new Date(nearest.duedate || nearest.due_date);
+          return bDate < nDate ? b : nearest;
+        }).duedate || unpaidBills[0].due_date
       : null;
+
+    // Format cards data for display
+    const cardsSummary = (cards || []).map(c => ({
+      name: c.cardname || c.card_name || 'Card',
+      bank: c.bankname || c.bank_name || 'Unknown Bank',
+      limit: c.creditlimit || c.credit_limit || 'Not set'
+    }));
+
+    // Format recent bills for display
+    const recentBills = unpaidBills.slice(0, 3).map(b => ({
+      amount: b.amountdue || b.amount_due,
+      dueDate: new Date(b.duedate || b.due_date).toLocaleDateString('en-IN'),
+      status: b.status || 'Unpaid'
+    }));
 
     const { GoogleGenerativeAI } = require("@google/generative-ai");
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -604,21 +738,13 @@ ${previousConversation || 'This is the start of the conversation.'}
 
 CURRENT USER'S FINANCIAL CONTEXT:
 - Total unpaid bills: ₹${totalUnpaidAmount?.toFixed(2) || '0'}
-- Active cards: ${cards?.length || 0}
-- Pending bills: ${bills?.length || 0}
+- Active cards: ${cardsSummary?.length || 0}
+- Pending bills: ${unpaidBills?.length || 0}
 - Nearest due date: ${nearestDueDate ? new Date(nearestDueDate).toLocaleDateString('en-IN') : 'N/A'}
 
-Recent Bills: ${JSON.stringify((bills || []).slice(0, 3).map(b => ({
-  bank: b.cards?.bankname,
-  amount: b.amountdue,
-  dueDate: new Date(b.duedate).toLocaleDateString('en-IN')
-})), null, 2)}
+Recent Bills: ${JSON.stringify(recentBills, null, 2)}
 
-Cards: ${JSON.stringify((cards || []).map(c => ({
-  name: c.cardname,
-  bank: c.bankname,
-  limit: c.creditlimit || 'Not provided'
-})), null, 2)}
+Cards: ${JSON.stringify(cardsSummary, null, 2)}
 
 NEW USER MESSAGE: "${message}"
 
@@ -658,7 +784,7 @@ IMPORTANT INSTRUCTIONS:
       console.warn('⚠️ Could not save assistant message:', err.message);
     }
 
-    console.log(`✅ Chatbot response generated for ${userEmail}`);
+
 
     res.json({ 
       response,
@@ -689,7 +815,7 @@ app.get('/api/chatbot/history/:userEmail', async (req, res) => {
 
     if (error) throw error;
 
-    console.log(`📚 Retrieved ${chatHistory?.length || 0} messages for ${userEmail}`);
+    console.log(`📚 Chat history retrieved`);
 
     res.json({ 
       userEmail,
@@ -719,7 +845,7 @@ app.delete('/api/chatbot/history/:userEmail', async (req, res) => {
 
     if (error) throw error;
 
-    console.log(`🗑️ Cleared chatbot history for ${userEmail}`);
+    console.log(`🗑️ Chat history cleared`);
 
     res.json({ 
       message: 'Chatbot history cleared',
@@ -771,7 +897,7 @@ app.post('/api/chatbot/extract-card-from-image', async (req, res) => {
       return res.status(429).json({ error: 'Too many card uploads. Please try again in 1 hour.' });
     }
 
-    console.log(`🔐 [AI Agent] Processing card image for: ${userEmail}`);
+    console.log(`🔐 [AI Agent] Processing card image...`);
 
     // ✅ Use Gemini Vision API to extract card details
     const { GoogleGenerativeAI } = require('@google/generative-ai');
@@ -914,7 +1040,7 @@ app.post('/api/chatbot/extract-card-from-image', async (req, res) => {
       console.warn('⚠️ Audit log error:', auditErr.message);
     }
 
-    console.log(`✅ [AI Agent] Card successfully saved for ${userEmail}: ${sanitizedData.bankName} ***${sanitizedData.last4Digits}`);
+    console.log(`✅ [AI Agent] Card successfully saved`);
 
     res.json({
       success: true,

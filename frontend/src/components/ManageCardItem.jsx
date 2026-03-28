@@ -8,12 +8,12 @@ const ManageCardItem = ({ card, onDelete, onEdit, onToggleSync }) => {
   // Map theme ID to CSS classes or use directly if hex
   const getBackground = () => {
     const themes = {
-      'midnight-purple': 'from-purple-900 to-indigo-800',
-      'royal-blue':     'from-blue-800 to-blue-600',
-      'gold-rush':      'from-yellow-600 to-yellow-400',
-      'ruby-red':       'from-rose-700 to-red-600',
-      'forest-green':   'from-emerald-800 to-teal-700',
-      'luxury-black':   'from-gray-900 to-gray-700',
+      'midnight-purple': 'from-purple-900 via-purple-800 to-indigo-900',
+      'royal-blue':     'from-blue-900 via-blue-700 to-cyan-800',
+      'gold-rush':      'from-amber-700 via-yellow-600 to-amber-500',
+      'ruby-red':       'from-red-800 via-rose-700 to-pink-600',
+      'forest-green':   'from-emerald-900 via-teal-800 to-cyan-700',
+      'luxury-black':   'from-gray-900 via-gray-800 to-slate-900',
     };
 
     if (themes[card.colorTheme]) {
@@ -22,7 +22,7 @@ const ManageCardItem = ({ card, onDelete, onEdit, onToggleSync }) => {
     if (card.colorTheme?.startsWith('#')) {
       return ''; // Handled via inline style
     }
-    return 'bg-gradient-to-br from-purple-900 to-purple-600'; // Fallback
+    return 'bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900'; // Fallback
   };
 
   const renderBrand = () => {
@@ -58,12 +58,23 @@ const ManageCardItem = ({ card, onDelete, onEdit, onToggleSync }) => {
 
   return (
     <div 
-      className={`relative w-full rounded-3xl ${getBackground()} text-white shadow-lg overflow-hidden transition-all duration-300 transform-gpu hover:-translate-y-1 hover:shadow-xl aspect-[1.6/1] cursor-pointer`}
-      style={{ backgroundColor: card.colorTheme?.startsWith('#') ? card.colorTheme : undefined }}
+      className={`relative w-full rounded-3xl ${getBackground()} text-white overflow-hidden transition-all duration-300 transform-gpu hover:-translate-y-1 aspect-[1.6/1] cursor-pointer`}
+      style={{ 
+        backgroundColor: card.colorTheme?.startsWith('#') ? card.colorTheme : undefined,
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 0 rgba(0, 0, 0, 0.15)',
+      }}
       onMouseEnter={() => setShowOverlay(true)}
       onMouseLeave={() => setShowOverlay(false)}
       onClick={() => setShowOverlay(!showOverlay)}
     >
+      {/* Reflective Gradient Overlay */}
+      <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/20 via-transparent to-transparent pointer-events-none overflow-hidden z-[5]">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-gradient-to-b from-white/30 to-transparent rounded-full filter blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
+      </div>
+
+      {/* Wavy Top Shine */}
+      <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-white/15 via-white/5 to-transparent rounded-t-3xl pointer-events-none z-[5]"></div>
+
       {/* Front of Card */}
       <div className="absolute inset-0 p-5 sm:p-6 flex flex-col justify-between z-10 pt-6">
         <div className="flex justify-between items-start">

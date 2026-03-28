@@ -10,9 +10,12 @@ const AIInsights = () => {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
 
-  const fetchInsights = async () => {
+  const fetchInsights = async (skipCache = false) => {
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/ai/latest');
+      const url = skipCache 
+        ? 'http://127.0.0.1:5000/api/ai/latest?nocache=true'
+        : 'http://127.0.0.1:5000/api/ai/latest';
+      const res = await fetch(url);
       const json = await res.json();
       setData(json);
     } catch (err) {
@@ -28,6 +31,8 @@ const AIInsights = () => {
       const res = await fetch('http://127.0.0.1:5000/api/ai/sync', { method: 'POST' });
       const json = await res.json();
       setData(json);
+      // After sync, refresh with fresh data (bypass cache)
+      await fetchInsights(true);
     } catch (err) {
       console.error('Manual sync failed:', err);
     } finally {

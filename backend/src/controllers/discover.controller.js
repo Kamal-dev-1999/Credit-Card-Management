@@ -15,7 +15,7 @@ const { processEmail } = require('../utils/parserRules');
  * Automatically registers new cards with default settings.
  */
 const discoverCardsForUser = async (user) => {
-  console.log(`\n🔍 [Discovery] Starting for: ${user.email}`);
+  // Starting card discovery...
 
   // ── Step 1: Fetch historical emails (180 days) ───────────────────────────
   let emails;
@@ -23,16 +23,15 @@ const discoverCardsForUser = async (user) => {
     // We scan 180 days back to be sure we catch at least one statement per card
     emails = await fetchCreditCardEmails(user.google_refresh_token, 180);
   } catch (err) {
-    console.error(`❌ [Discovery] Gmail fetch failed:`, err.message);
+    console.error(`❌ Card discovery failed:`, err.message);
     return { success: false, error: err.message };
   }
 
   if (!emails || emails.length === 0) {
-    console.log('  📭 No matching emails found in Gmail.');
     return { success: true, newCardsFound: 0 };
   }
 
-  console.log(`  📬 Analyzing ${emails.length} historical email(s)...`);
+  // Analyzing emails...
 
   const discoveredCards = new Map(); // Key: "Bank_Last4"
 
@@ -50,7 +49,7 @@ const discoverCardsForUser = async (user) => {
     }
   }
 
-  console.log(`  ✨ Identified ${discoveredCards.size} unique card(s) from emails.`);
+  // Card identification complete
 
   if (discoveredCards.size === 0) {
     return { success: true, newCardsFound: 0 };
@@ -70,7 +69,6 @@ const discoverCardsForUser = async (user) => {
         .limit(1);
 
       if (existing && existing.length > 0) {
-        console.log(`  ⏭️  Skipping existing card: ${info.bankname} (•••• ${info.last4digits})`);
         continue;
       }
 
@@ -88,17 +86,16 @@ const discoverCardsForUser = async (user) => {
         .insert([newCard]);
 
       if (insertErr) {
-        console.error(`  ❌ Failed to register ${info.bankname}:`, insertErr.message);
+        console.error(`  ❌ Card registration failed:`, insertErr.message);
       } else {
-        console.log(`  ✅ Automatically registered: ${info.bankname} (•••• ${info.last4digits})`);
         addedCount++;
       }
     } catch (err) {
-      console.error(`  ❌ Error processing ${info.bankname}:`, err.message);
+      console.error(`  ❌ Card processing error:`, err.message);
     }
   }
 
-  console.log(`\n  🎯 Discovery complete. ${addedCount} new card(s) added.`);
+  // Discovery complete
   return { success: true, newCardsFound: addedCount };
 };
 

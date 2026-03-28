@@ -30,10 +30,11 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
   const [showPaid, setShowPaid] = useState(true);
   const [loadingId, setLoadingId] = useState(null);
   const [lastSynced, setLastSynced] = useState(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const fetchBills = () => {
     setLoading(true);
-    fetch('http://127.0.0.1:5000/api/dashboard/summary')
+    fetch('http://127.0.0.1:5000/api/dashboard/summary?nocache=true')
       .then(r => r.json())
       .then(data => {
         const normalized = (data.bills || []).map(b => ({
@@ -55,6 +56,40 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
       .catch(() => setLoading(false));
   };
 
+  // Full refresh: Sync Gmail first, then fetch bills
+  const handleFullRefresh = async () => {
+    setIsSyncing(true);
+    setLoading(true);
+    try {
+      console.log('🔄 [RecentBills] Starting full refresh: Gmail sync + database fetch');
+      
+      // Step 1: Sync emails from Gmail
+      console.log('📧 [RecentBills] Fetching and parsing emails from Gmail...');
+      const syncResp = await fetch('http://127.0.0.1:5000/api/test/parse-emails', { 
+        method: 'GET' 
+      });
+      
+      if (!syncResp.ok) {
+        console.warn(`⚠️ [RecentBills] Gmail sync returned ${syncResp.status}, continuing...`);
+      } else {
+        const syncResult = await syncResp.json();
+        console.log('✅ [RecentBills] Gmail sync complete:', syncResult);
+      }
+      
+      // Step 2: Fetch updated bills from database
+      console.log('💾 [RecentBills] Fetching updated bills from database...');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for DB to update
+      fetchBills();
+      
+    } catch (err) {
+      console.error('❌ [RecentBills] Full refresh error:', err);
+      // Even if sync fails, still try to fetch bills
+      fetchBills();
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => { fetchBills(); }, [refreshKey]);
 
   const updateBillStatus = async (id, newStatus) => {
@@ -71,10 +106,12 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
       const updated = await res.json();
       const updatedBill = bills.find(b => b.id === id);
       
+      // Always refresh to get fresh data
+      fetchBills();
+      
+      // Also call callback if provided
       if (onPaySuccess && updatedBill) {
         onPaySuccess({ ...updatedBill, status: newStatus });
-      } else {
-        fetchBills(); // Fallback if prop missing
       }
     } catch (err) {
       console.error('Status update failed:', err);
@@ -118,9 +155,17 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
           )}
         </div>
         <div className="flex items-center gap-4 w-full md:w-auto">
-          <button onClick={fetchBills} title="Refresh" className="p-2 text-gray-400 hover:text-primary hover:bg-yellow-50 rounded-lg transition-colors">
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+          <button 
+            onClick={handleFullRefresh} 
+            disabled={isSyncing || loading}
+            title="Sync Gmail & Refresh Bills" 
+            className="p-2 text-gray-400 hover:text-primary hover:bg-yellow-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <RefreshCw size={16} className={isSyncing || loading ? 'animate-spin' : ''} />
           </button>
+          {isSyncing && (
+            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest animate-pulse">Syncing Gmail...</span>
+          )}
           <label className="flex items-center gap-2 text-sm font-medium text-gray-600 cursor-pointer">
             <input type="checkbox" checked={showPaid} onChange={(e) => setShowPaid(e.target.checked)} className="w-4 h-4 rounded text-primary focus:ring-primary border-gray-300" />
             Show Paid

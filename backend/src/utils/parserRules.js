@@ -102,8 +102,10 @@ const UNIVERSAL_PATTERNS = {
   amountDue: [
     // IndusInd specific: "Total and Minimum Amounts Due... are ₹ 115509.00 DR and ₹9997.00 respectively"
     /Total\s+and\s+Minimum\s+Amounts\s+Due[^]*?are\s*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)\s+DR/i,
-    // HDFC specific: "Spends of Rs.37853.21 as on"
-    /(?:Spends\s+of|Amount\s+of|Total\s+Due\s+of)\s*(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)/i,
+    // HDFC specific: "Spends of Rs.37853.21 as on" or similar patterns
+    /(?:Spends\s+of|Amount\s+of|Total\s+Due\s+of|Statement\s+Balance|Your\s+dues)\s*(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i,
+    // For HDFC Biz Grow: Look for "card statement" context and extract nearby amounts
+    /(?:card\s+statement|credit\s+card)[^]*?(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i,
     // Standard labels with flexible spacing/tags
     /(?:Total\s+Amt\s+Due|Total\s+Amount\s+Due|Amount\s+Due|Statement\s+Balance|Outstanding\s+Amount|Total\s+Payable|Amt\s+Payable|Current\s+Due|Total\s+Due|Payable\s+Amt|Net\s+Amount\s+Payable|Amount\s+Payable|Payable\s+Amount|Current\s+Outstanding|Summary\s+of\s+Account)[^]{0,200}?(?:Rs\.?|INR|₹)?\s*([\d,]+(?:\.\d{1,2})?)/i,
     // "Payment of INR 14,450.20 is due"
@@ -258,13 +260,12 @@ const processEmail = (email) => {
   const bank = identifyBank(email);
 
   if (!bank) {
-    console.log(`  [Parser] Unsupported format for sender: ${email.from}`);
     return null;
   }
 
-  console.log(`  [Parser] Identified bank: ${bank.bankName}`);
   const rawBody = email.body || '';
   const body = stripHtml(rawBody);
+  const subject = (email.subject || '').toLowerCase();
 
   // ── Check for payment confirmation first ──
   const isPaymentConfirmation = UNIVERSAL_PATTERNS.paymentConfirmation.some(p => p.test(body));
@@ -280,10 +281,26 @@ const processEmail = (email) => {
   const statementDate  = standardizeDate(rawStmtDate);
   const last4Digits    = rawLast4 || null;
 
-  // Debug logging on failure
+  // ── Special handling for PDF-attached statements ──
+  // If this is clearly a statement email (from subject) but body contains "attached" or "PDF",
+  // it's likely a statement sent as attachment. Return minimal data rather than skip.
+  const isStatementSubject = bank.subjectPatterns.some(p => p.test(subject));
+  const isAttachmentEmail = /attached|PDF|pdf|e-statement|e-Statement/i.test(body);
+  
   if (!amountDue && !isPaymentConfirmation) {
-    console.log(`  [Parser] No billing data extracted from ${bank.bankName} email.`);
-    console.log(`  [Parser] Body snippet: ${body.substring(0, 300)}...`);
+    // If it's a recognized statement but data is in attachment, try to estimate from subject
+    if (isStatementSubject && isAttachmentEmail) {
+      return {
+        bankName: bank.bankName,
+        last4Digits: null,
+        amountDue: null,        // Can't extract from PDF
+        dueDate: null,          // Can't extract from PDF
+        statementDate: null,    // Can't extract from PDF
+        isPaymentConfirmation: false,
+        isAttachmentBased: true // Flag for UI to handle specially
+      };
+    }
+    
     return null;
   }
 
@@ -296,7 +313,6 @@ const processEmail = (email) => {
     isPaymentConfirmation,
   };
 
-  console.log(`  [Parser] Extracted:`, JSON.stringify(result));
   return result;
 };
 

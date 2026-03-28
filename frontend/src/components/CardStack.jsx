@@ -83,14 +83,14 @@ const CardStack = ({ onCardSelect, setActivePage }) => {
 
   const getThemeClass = (themeId) => {
     const themes = {
-      'midnight-purple': 'from-purple-900 to-indigo-800',
-      'royal-blue':     'from-blue-800 to-blue-600',
-      'gold-rush':      'from-yellow-600 to-yellow-400',
-      'ruby-red':       'from-rose-700 to-red-600',
-      'forest-green':   'from-emerald-800 to-teal-700',
-      'luxury-black':   'from-gray-900 to-gray-700',
+      'midnight-purple': 'from-purple-900 via-purple-800 to-indigo-900',
+      'royal-blue':     'from-blue-900 via-blue-700 to-cyan-800',
+      'gold-rush':      'from-amber-700 via-yellow-600 to-amber-500',
+      'ruby-red':       'from-red-800 via-rose-700 to-pink-600',
+      'forest-green':   'from-emerald-900 via-teal-800 to-cyan-700',
+      'luxury-black':   'from-gray-900 via-gray-800 to-slate-900',
     };
-    return themes[themeId] || 'from-purple-900 to-purple-600';
+    return themes[themeId] || 'from-purple-900 via-purple-800 to-indigo-900';
   };
 
   const renderBrand = (type) => {
@@ -134,37 +134,49 @@ const CardStack = ({ onCardSelect, setActivePage }) => {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9 }}
                 onClick={() => handleCardClick(card.id)}
-                className={`absolute w-full rounded-3xl p-6 text-white shadow-2xl transition-all duration-500 ease-out cursor-pointer hover:-translate-y-2 flex flex-col justify-between ${!isCustomColor ? `bg-gradient-to-br ${getThemeClass(card.colorTheme)}` : ''}`}
+                className={`absolute w-full rounded-3xl p-6 text-white transition-all duration-500 ease-out cursor-pointer hover:-translate-y-2 flex flex-col justify-between ${!isCustomColor ? `bg-gradient-to-br ${getThemeClass(card.colorTheme)}` : ''}`}
                 style={{
                   zIndex,
                   top: `${topOffset}px`,
                   transform: `scale(${scale})`,
                   transformOrigin: 'top center',
                   backgroundColor: isCustomColor ? card.colorTheme : undefined,
+                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 rgba(255, 255, 255, 0.15), inset 0 -1px 0 0 rgba(0, 0, 0, 0.15)',
                 }}
               >
-                <div className="flex justify-between items-start">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-lg tracking-wider uppercase drop-shadow-sm truncate max-w-[180px]">
-                      {card.nickname || card.name}
-                    </span>
-                    {(card.nickname && card.nickname.toLowerCase() !== card.name.toLowerCase()) && (
-                      <span className="text-[10px] opacity-70 font-medium truncate max-w-[150px]">{card.name}</span>
-                    )}
-                  </div>
-                  <Wifi className="rotate-90 text-white/80" size={18} />
+                {/* Reflective Gradient Overlay */}
+                <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/20 via-transparent to-transparent pointer-events-none overflow-hidden">
+                  <div className="absolute top-0 left-0 w-96 h-96 bg-gradient-to-b from-white/30 to-transparent rounded-full filter blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
                 </div>
-                
-                <div className="text-xl font-medium font-mono tracking-[0.18em] my-6 drop-shadow-sm opacity-90 text-center">
-                  {card.number}
-                </div>
-                
-                <div className="flex justify-between items-end">
-                  <div>
-                    <div className="text-[8px] text-white/70 mb-0.5 tracking-widest uppercase">Valid Thru</div>
-                    <div className="font-bold text-xs">{card.validThru}</div>
+
+                {/* Wavy Top Shine */}
+                <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-white/15 via-white/5 to-transparent rounded-t-3xl pointer-events-none"></div>
+
+                {/* Card Content */}
+                <div className="relative z-10 flex flex-col justify-between h-full">
+                  <div className="flex justify-between items-start">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-lg tracking-wider uppercase drop-shadow-sm truncate max-w-[180px]">
+                        {card.nickname || card.name}
+                      </span>
+                      {(card.nickname && card.nickname.toLowerCase() !== card.name.toLowerCase()) && (
+                        <span className="text-[10px] opacity-70 font-medium truncate max-w-[150px]">{card.name}</span>
+                      )}
+                    </div>
+                    <Wifi className="rotate-90 text-white/80" size={18} />
                   </div>
-                  {renderBrand(card.type)}
+                  
+                  <div className="text-xl font-medium font-mono tracking-[0.18em] my-6 drop-shadow-sm opacity-90 text-center">
+                    {card.number}
+                  </div>
+                  
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <div className="text-[8px] text-white/70 mb-0.5 tracking-widest uppercase">Valid Thru</div>
+                      <div className="font-bold text-xs">{card.validThru}</div>
+                    </div>
+                    {renderBrand(card.type)}
+                  </div>
                 </div>
               </motion.div>
             );

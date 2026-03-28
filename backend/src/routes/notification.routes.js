@@ -2,7 +2,8 @@ const express = require('express');
 const {
   getNotificationsController,
   markNotificationAsReadController,
-  markAllNotificationsAsReadController
+  markAllNotificationsAsReadController,
+  clearAllNotificationsController
 } = require('../controllers/notification.controller.js');
 
 const router = express.Router();
@@ -24,5 +25,11 @@ router.post('/mark-read', markNotificationAsReadController);
  * Mark all notifications as read for the current user
  */
 router.post('/mark-all-read', markAllNotificationsAsReadController);
+
+/**
+ * DELETE /api/notifications/clear-all
+ * Clear all notifications for the current user (delete from database and cache)
+ */
+router.delete('/clear-all', clearAllNotificationsController);
 
 module.exports = router;

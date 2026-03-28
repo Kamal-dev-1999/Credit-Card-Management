@@ -14,3 +14,63 @@
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
+
+@layer components {
+  /* Realistic Credit Card Styling */
+  .credit-card-base {
+    @apply relative rounded-3xl text-white overflow-hidden transition-all duration-300;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 
+                inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+                inset 0 -1px 0 0 rgba(0, 0, 0, 0.15),
+                0 8px 16px -4px rgba(0, 0, 0, 0.2);
+  }
+
+  .credit-card-shine::before {
+    content: '';
+    @apply absolute inset-0 rounded-3xl pointer-events-none;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.25) 0%, transparent 50%);
+    z-index: 5;
+  }
+
+  .credit-card-shine::after {
+    content: '';
+    @apply absolute top-0 left-0 right-0 h-32 pointer-events-none rounded-t-3xl;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05), transparent);
+    z-index: 4;
+  }
+
+  /* Smooth card transition on hover */
+  .card-hover-lift:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 35px 60px -15px rgba(0, 0, 0, 0.5), 
+                inset 0 1px 0 0 rgba(255, 255, 255, 0.15),
+                inset 0 -1px 0 0 rgba(0, 0, 0, 0.15),
+                0 12px 24px -8px rgba(0, 0, 0, 0.25) !important;
+  }
+
+  /* Glossy text effect for card numbers */
+  .card-number-glossy {
+    @apply font-mono drop-shadow-md;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+}
+
+@layer utilities {
+  /* Reflective gradient utilities */
+  .glass-shine {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, transparent 50%);
+    @apply pointer-events-none;
+  }
+
+  .card-gradient-overlay {
+    @apply absolute inset-0 rounded-3xl pointer-events-none overflow-hidden;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, transparent 50%);
+  }
+
+  .card-light-effect {
+    @apply absolute pointer-events-none filter blur-3xl;
+    width: 24rem;
+    height: 24rem;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+  }
+}

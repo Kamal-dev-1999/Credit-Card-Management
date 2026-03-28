@@ -26,13 +26,7 @@ const generateDailyInsights = async () => {
             throw new Error(`Cards fetch error: ${cErr.message}`);
         }
 
-        console.log('🤖 AI Context Raw Debug:', { 
-            foundBills: bills?.length || 0, 
-            foundCards: cards?.length || 0
-        });
-
         if (!cards || cards.length === 0) {
-            console.log('⚠️ No cards found for AI insights.');
             throw new Error('No cards registered yet. Please add cards first.');
         }
 
@@ -109,7 +103,6 @@ const generateDailyInsights = async () => {
 const syncAIInsights = async () => {
     try {
         const insights = await generateDailyInsights();
-        console.log('✅ Generated AI Insights:', JSON.stringify(insights, null, 2));
         
         const { error } = await supabaseAdmin.from('ai_insights').insert([insights]);
         if (error) throw error;
@@ -147,21 +140,17 @@ const syncAIInsights = async () => {
               };
               
               await supabaseAdmin.from('notifications').insert([notif]).catch(err => {
-                console.warn(`Could not create AI notification for user ${userEmail}:`, err.message);
+                console.warn(`Notification creation failed:`, err.message);
               });
-              
-              console.log(`✅ AI insights notification created for: ${userEmail}`);
             }
           }
           
-          console.log(`✅ AI insights notifications created for ${uniqueUserIds.length} user(s)`);
         }
         
-        console.log("✅ AI Insights synchronized and stored for the next 24 hours.");
+        // AI Insights synchronized
         return insights;
     } catch (err) {
-        console.error("❌ Failed to sync AI Insights:", err.message);
-        console.error("❌ Stack trace:", err.stack);
+        console.error("❌ AI Insights sync failed");
         // Don't return fallback data - let the error propagate so the endpoint can handle it
         throw err;
     }

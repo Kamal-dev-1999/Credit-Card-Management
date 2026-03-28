@@ -2,14 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Bell, Menu, LogOut, Mail } from 'lucide-react';
 import NotificationCenter from './NotificationCenter';
 
-const Header = ({ notifications, setNotifications, unreadCount, onMarkAsRead, onMarkAllAsRead }) => {
+const Header = ({ notifications, setNotifications, unreadCount, onMarkAsRead, onMarkAllAsRead, onClearAll }) => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [userEmail, setUserEmail] = useState(localStorage.getItem('lana_user_email') || '');
 
-  useEffect(() => {
-    console.log('🔔 [Header] Component mounted/updated. onMarkAsRead prop is:', onMarkAsRead ? 'DEFINED' : 'UNDEFINED');
-    console.log('🔔 [Header] onMarkAllAsRead prop is:', onMarkAllAsRead ? 'DEFINED' : 'UNDEFINED');
-  }, [onMarkAsRead, onMarkAllAsRead]);
+  useEffect(() => {}, [onMarkAsRead, onMarkAllAsRead, onClearAll]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -73,6 +70,7 @@ const Header = ({ notifications, setNotifications, unreadCount, onMarkAsRead, on
             notifications={notifications}
             markAllAsRead={onMarkAllAsRead}
             onMarkAsRead={onMarkAsRead}
+            onClearAll={onClearAll}
           />
         </div>
 

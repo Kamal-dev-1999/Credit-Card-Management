@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bell, Check, DollarSign, AlertTriangle, Sparkles, ArrowRight, Trash2 } from 'lucide-react';
 
-const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead, onMarkAsRead }) => {
+const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead, onMarkAsRead, onClearAll }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [marking, setMarking] = useState(null); // Track which notification is being marked
 
@@ -13,27 +13,30 @@ const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead, onM
   }, []);
 
   const handleMarkAsRead = async (notificationId) => {
-    console.log('🔔 [NotificationCenter] handleMarkAsRead called with ID:', notificationId);
-    console.log('🔔 [NotificationCenter] onMarkAsRead prop is:', onMarkAsRead ? 'DEFINED' : 'UNDEFINED');
-    
     if (!onMarkAsRead) {
-      console.warn('⚠️ [NotificationCenter] WARNING: onMarkAsRead prop is undefined! Function will not be called.');
       return;
     }
     
     setMarking(notificationId);
     try {
-      console.log('🔔 [NotificationCenter] Calling onMarkAsRead...');
       await onMarkAsRead(notificationId);
-      console.log('🔔 [NotificationCenter] onMarkAsRead completed successfully');
     } catch (err) {
-      console.error('❌ [NotificationCenter] Error in handleMarkAsRead:', err);
-      console.error('❌ [NotificationCenter] Error details:', {
-        message: err.message,
-        stack: err.stack
-      });
+      console.error('Error marking notification as read');
     } finally {
       setMarking(null);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (!onClearAll) {
+      return;
+    }
+
+    try {
+      await onClearAll();
+      onClose();
+    } catch (err) {
+      console.error('Error clearing notifications');
     }
   };
 
@@ -75,7 +78,6 @@ const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead, onM
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: idx * 0.05 }}
             onClick={() => {
-              console.log('🔔 [NotificationCenter] Notification clicked. ID:', notif.id, 'Read status:', notif.read);
               !notif.read && handleMarkAsRead(notif.id);
             }}
             className={`p-4 flex gap-3 transition-all duration-200 cursor-pointer group ${!notif.read ? 'hover:from-yellow-50/50 hover:to-transparent bg-yellow-50/40 hover:bg-yellow-50/60' : 'hover:from-gray-50 hover:to-transparent'}`}
@@ -158,24 +160,29 @@ const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead, onM
                 <div className="flex-1 overflow-y-auto">
                   <NotificationList />
                 </div>
-                {unreadCount > 0 && (
-                  <div className="p-4 border-t border-gray-100 bg-gray-50/50">
+                <div className="p-4 border-t border-gray-100 bg-gray-50/50 space-y-3">
+                  {unreadCount > 0 && (
                     <button 
                       onClick={() => {
-                        console.log('🔔 [NotificationCenter] Mark All as Read button clicked');
-                        console.log('🔔 [NotificationCenter] markAllAsRead prop is:', markAllAsRead ? 'DEFINED' : 'UNDEFINED');
                         if (markAllAsRead) {
                           markAllAsRead();
-                        } else {
-                          console.warn('⚠️ [NotificationCenter] WARNING: markAllAsRead prop is undefined!');
                         }
                       }}
                       className="w-full py-3 bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-white font-semibold rounded-lg transition-all shadow-md hover:shadow-lg"
                     >
                       Mark All as Read
                     </button>
-                  </div>
-                )}
+                  )}
+                  {notifications.length > 0 && (
+                    <button 
+                      onClick={handleClearAll}
+                      className="w-full py-3 bg-gradient-to-r from-red-400 to-red-500 hover:from-red-500 hover:to-red-600 text-white font-semibold rounded-lg transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                    >
+                      <Trash2 size={18} />
+                      Clear All Notifications
+                    </button>
+                  )}
+                </div>
               </motion.div>
             </>
           ) : (
@@ -200,26 +207,33 @@ const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead, onM
                     </motion.span>
                   )}
                 </div>
-                {unreadCount > 0 && (
-                  <button 
-                    onClick={() => {
-                      console.log('🔔 [NotificationCenter] Mark all as read link clicked (header)');
-                      console.log('🔔 [NotificationCenter] markAllAsRead prop is:', markAllAsRead ? 'DEFINED' : 'UNDEFINED');
-                      if (markAllAsRead) {
-                        markAllAsRead();
-                      } else {
-                        console.warn('⚠️ [NotificationCenter] WARNING: markAllAsRead prop is undefined!');
-                      }
-                    }}
-                    className="text-xs font-semibold text-primary hover:text-yellow-600 transition-colors hover:bg-yellow-50/50 px-2 py-1 rounded"
-                  >
-                    Mark all as read
-                  </button>
-                )}
               </div>
               <div className="max-h-[500px] overflow-y-auto">
                 <NotificationList />
               </div>
+              {notifications.length > 0 && (
+                <div className="p-4 border-t border-gray-100 bg-gray-50/50 space-y-2">
+                {unreadCount > 0 && (
+                    <button 
+                      onClick={() => {
+                        if (markAllAsRead) {
+                          markAllAsRead();
+                        }
+                      }}
+                      className="w-full text-sm font-semibold text-primary hover:text-yellow-600 transition-colors hover:bg-yellow-50/50 px-3 py-2 rounded"
+                    >
+                      Mark all as read
+                    </button>
+                  )}
+                  <button 
+                    onClick={handleClearAll}
+                    className="w-full text-sm font-semibold text-red-600 hover:text-red-700 transition-colors hover:bg-red-50/50 px-3 py-2 rounded flex items-center justify-center gap-2"
+                  >
+                    <Trash2 size={16} />
+                    Clear all
+                  </button>
+                </div>
+              )}
             </motion.div>
           )}
         </>

@@ -64,7 +64,7 @@ const handleGoogleCallback = async (req, res) => {
         // Non-fatal — log and continue even if column doesn't exist yet
         console.warn('Could not store refresh token:', updateError.message);
       } else {
-        console.log('✅ Stored refresh token for:', userEmail);
+        // Refresh token stored successfully
       }
     } else {
       console.log('⚠️ No refresh token — user may have authorized before.');

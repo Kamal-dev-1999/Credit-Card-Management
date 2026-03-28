@@ -13,7 +13,7 @@ const getNotificationsController = async (req, res) => {
       return res.status(200).json({ notifications: [] });
     }
 
-    console.log(`📬 Fetching notifications for user: ${userEmail}`);
+    // Fetching notifications...
 
     // Fetch notifications directly by email from Supabase
     const { data: notifications, error } = await supabaseAdmin
@@ -40,7 +40,7 @@ const getNotificationsController = async (req, res) => {
       actionUrl: notif.actionurl
     }));
 
-    console.log(`✅ Returning ${formattedNotifications.length} notifications`);
+    console.log(`✅ Notifications retrieved`);
     res.json({ notifications: formattedNotifications, count: formattedNotifications.length });
   } catch (err) {
     console.error('Error fetching notifications:', err);
@@ -113,7 +113,7 @@ const markAllNotificationsAsReadController = async (req, res) => {
   try {
     const userEmail = req.headers['x-user-email'];
 
-    console.log(`📝 Attempting to mark all notifications as read for user: ${userEmail}`);
+    // Marking all notifications as read...
 
     if (!userEmail) {
       console.warn('⚠️  No user email provided in headers');
@@ -130,7 +130,7 @@ const markAllNotificationsAsReadController = async (req, res) => {
     if (countError) {
       console.error('❌ Error counting unread notifications:', countError);
     } else {
-      console.log(`📊 Found ${unreadBefore?.length || 0} unread notifications for ${userEmail}`);
+
     }
 
     // Update all unread notifications
@@ -146,11 +146,70 @@ const markAllNotificationsAsReadController = async (req, res) => {
       throw updateError;
     }
 
-    console.log(`✅ Marked ${updated?.length || 0} notifications as read for user: ${userEmail}`);
+    console.log(`✅ Marked notifications as read`);
     res.json({ success: true, message: 'All notifications marked as read', updatedCount: updated?.length || 0 });
   } catch (err) {
     console.error('❌ Error marking all notifications as read:', err);
     res.status(500).json({ error: 'Failed to mark all notifications as read', details: err.message });
+  }
+};
+
+/**
+ * Clear all notifications for the current user (delete from database and cache)
+ */
+const clearAllNotificationsController = async (req, res) => {
+  try {
+    const userEmail = req.headers['x-user-email'];
+
+    // Clearing all notifications...
+
+    if (!userEmail) {
+      console.warn('⚠️  No user email provided in headers');
+      return res.status(401).json({ error: 'User email required' });
+    }
+
+    // Count notifications before deletion
+    const { data: notificationsBefore, error: countError } = await supabaseAdmin
+      .from('notifications')
+      .select('id', { count: 'exact' })
+      .eq('useremail', userEmail);
+
+    if (countError) {
+      console.error('❌ Error counting notifications before deletion:', countError);
+    } else {
+
+    }
+
+    // Delete all notifications for this user
+    const { error: deleteError } = await supabaseAdmin
+      .from('notifications')
+      .delete()
+      .eq('useremail', userEmail);
+
+    if (deleteError) {
+      console.error('❌ Error deleting notifications:', deleteError);
+      throw deleteError;
+    }
+
+    // Clear cache for this user
+    try {
+      const { deleteCache } = require('../utils/cache.js');
+      await deleteCache(`user:${userEmail}:notifications`);
+
+    } catch (cacheErr) {
+      console.warn(`⚠️  Warning clearing cache: ${cacheErr.message}`);
+      // Don't fail if cache clearing fails
+    }
+
+    console.log(`✅ Notifications cleared`);
+    res.json({ 
+      success: true, 
+      message: 'All notifications cleared successfully', 
+      clearedCount: notificationsBefore?.length || 0 
+    });
+  } catch (err) {
+    console.error('❌ Error clearing all notifications:', err);
+    res.status(500).json({ error: 'Failed to clear all notifications', details: err.message });
   }
 };
 
@@ -175,5 +234,6 @@ const formatTimeAgo = (date) => {
 module.exports = {
   getNotificationsController,
   markNotificationAsReadController,
-  markAllNotificationsAsReadController
+  markAllNotificationsAsReadController,
+  clearAllNotificationsController
 };

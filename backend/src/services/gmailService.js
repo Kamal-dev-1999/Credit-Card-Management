@@ -86,7 +86,7 @@ const fetchCreditCardEmails = async (refreshToken, daysLimit = 90) => {
   });
 
   const messages = listResponse.data.messages || [];
-  console.log(`📧 Found ${messages.length} matching emails.`);
+  console.log(`� Found ${messages.length} matching emails.`);
 
   const emails = [];
 

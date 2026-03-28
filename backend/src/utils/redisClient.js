@@ -55,13 +55,28 @@ const initRedis = async () => {
  * Cache-Aside Pattern Implementation
  * @param {string} key - Cache key
  * @param {function} fetchFunction - Function that fetches data from DB
- * @param {number} ttl - Time to live in seconds (default: 3600 = 1 hour)
+ * @param {number} ttl - Time to live in seconds (default: 3600 = 1 hour). Set to 0 to bypass cache entirely.
  * @returns {object} - Cached or fresh data
  */
 const getCachedData = async (key, fetchFunction, ttl = 3600) => {
   try {
+    // If ttl is 0, bypass cache completely and fetch fresh data
+    if (ttl === 0) {
+      const data = await fetchFunction();
+      
+      // Delete old cache key if it exists
+      try {
+        if (isConnected && redisClient) {
+          await redisClient.del(key);
+        }
+      } catch (delErr) {
+        // Cache deletion failed, continue
+      }
+      
+      return data;
+    }
+
     if (!isConnected || !redisClient) {
-      console.log(`⏭️  Cache miss (Redis unavailable). Fetching from DB...`);
       return await fetchFunction();
     }
 
@@ -69,30 +84,27 @@ const getCachedData = async (key, fetchFunction, ttl = 3600) => {
     try {
       const cached = await redisClient.get(key);
       if (cached) {
-        console.log(`✅ CACHE HIT: ${key}`);
         return JSON.parse(cached);
       }
     } catch (redisErr) {
-      console.warn(`⚠️  Redis GET failed: ${redisErr.message}`);
+      console.warn(`⚠️  Cache retrieval failed: ${redisErr.message}`);
     }
 
     // Cache miss - fetch from DB
-    console.log(`⏭️  CACHE MISS: ${key}. Fetching from DB...`);
     const data = await fetchFunction();
 
     // Try to cache the result
     try {
       if (data) {
         await redisClient.setEx(key, ttl, JSON.stringify(data));
-        console.log(`💾 Cached: ${key} (TTL: ${ttl}s)`);
       }
     } catch (redisErr) {
-      console.warn(`⚠️  Redis SET failed: ${redisErr.message}`);
+      console.warn(`⚠️  Cache write failed: ${redisErr.message}`);
     }
 
     return data;
   } catch (err) {
-    console.error(`❌ getCachedData error: ${err.message}`);
+    console.error(`❌ Data fetch failed`);
     return await fetchFunction();
   }
 };
@@ -106,11 +118,8 @@ const deleteCache = async (key) => {
     if (!isConnected || !redisClient) return;
     
     const deleted = await redisClient.del(key);
-    if (deleted > 0) {
-      console.log(`🗑️  Cache invalidated: ${key}`);
-    }
   } catch (err) {
-    console.warn(`⚠️  Failed to delete cache: ${err.message}`);
+    console.warn(`⚠️  Cache deletion failed: ${err.message}`);
   }
 };
 
@@ -125,10 +134,9 @@ const deleteCachePattern = async (pattern) => {
     const keys = await redisClient.keys(pattern);
     if (keys.length > 0) {
       await redisClient.del(keys);
-      console.log(`🗑️  Invalidated ${keys.length} caches for pattern: ${pattern}`);
     }
   } catch (err) {
-    console.warn(`⚠️  Failed to delete cache pattern: ${err.message}`);
+    console.warn(`⚠️  Cache pattern deletion failed: ${err.message}`);
   }
 };
 
@@ -151,14 +159,12 @@ const acquireLock = async (lockKey, ttl = 300) => {
     });
 
     if (result) {
-      console.log(`🔐 Lock acquired: ${lockKey} (TTL: ${ttl}s)`);
       return true;
     }
 
-    console.log(`⚠️  Lock already exists: ${lockKey}. Another operation in progress.`);
     return false;
   } catch (err) {
-    console.warn(`⚠️  Lock acquisition failed: ${err.message}`);
+    console.warn(`⚠️  Lock operation failed: ${err.message}`);
     return true; // Proceed if Redis fails
   }
 };
@@ -172,9 +178,8 @@ const releaseLock = async (lockKey) => {
     if (!isConnected || !redisClient) return;
 
     await redisClient.del(lockKey);
-    console.log(`🔓 Lock released: ${lockKey}`);
   } catch (err) {
-    console.warn(`⚠️  Lock release failed: ${err.message}`);
+    console.warn(`⚠️  Lock operation failed: ${err.message}`);
   }
 };
 

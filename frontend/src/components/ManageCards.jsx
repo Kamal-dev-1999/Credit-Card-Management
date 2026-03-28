@@ -63,18 +63,36 @@ const ManageCards = () => {
 
   const handleDiscover = async () => {
     setIsDiscovering(true);
+    console.log('🔍 [ManageCards] Starting card discovery...');
     try {
-      const resp = await fetch('/api/cards/discover', { method: 'POST' });
+      console.log('📨 [ManageCards] Calling /api/cards/discover endpoint...');
+      const resp = await fetch('http://127.0.0.1:5000/api/cards/discover', { 
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      console.log(`📍 [ManageCards] Response status: ${resp.status}`);
+      
+      if (!resp.ok) {
+        const errorText = await resp.text();
+        console.error(`❌ [ManageCards] Server error: ${resp.status} - ${errorText}`);
+        alert(`❌ Discovery failed: ${resp.status} error`);
+        setIsDiscovering(false);
+        return;
+      }
+      
       const result = await resp.json();
+      console.log('✅ [ManageCards] Discovery result:', result);
+      
       if (result.success) {
         alert(`✨ Discovery complete! Found and added ${result.newCardsFound} new cards.`);
         fetchCards();
       } else {
-        alert('Discovery failed: ' + result.error);
+        alert('Discovery failed: ' + (result.error || 'Unknown error'));
       }
     } catch (err) {
-      console.error('Discovery error:', err);
-      alert('Network error during discovery.');
+      console.error('❌ [ManageCards] Discovery error:', err);
+      alert('Network error during discovery: ' + err.message);
     } finally {
       setIsDiscovering(false);
     }
