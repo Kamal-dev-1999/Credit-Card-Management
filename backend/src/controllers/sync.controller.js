@@ -122,20 +122,37 @@ const syncEmailsForUser = async (user) => {
     const status = computeStatus(parsed.dueDate);
     const today = new Date().toISOString().split('T')[0];
 
-    // ── Manual Duplicate Check ──
-    // Instead of relying on a DB-level unique constraint (which is missing/failing), 
-    // we query first to see if this bill already exists.
-    const { data: existingBills, error: fetchErr } = await supabase
-      .from('bills')
-      .select('id, amountdue, status')
-      .eq('cardid', card.id)
-      .eq('duedate', parsed.dueDate || null)
-      .limit(1);
+    // ── Extract Due Month (YYYY-MM) for duplicate checking ──
+    let dueMonth = null;
+    if (parsed.dueDate) {
+      dueMonth = parsed.dueDate.substring(0, 7); // Format: "2024-03"
+    }
 
-    if (fetchErr) {
-      console.error('  ❌ Error checking for duplicates:', fetchErr.message);
-      skipped++;
-      continue;
+    // ── Manual Duplicate Check ──
+    // Check if a bill with the same card, due month, and amount already exists
+    // This prevents duplicates when syncing emails multiple times
+    let existingBills = [];
+    if (dueMonth) {
+      const { data, error: fetchErr } = await supabase
+        .from('bills')
+        .select('id, amountdue, status, duedate')
+        .eq('cardid', card.id)
+        .eq('amountdue', parsed.amountDue);
+
+      if (fetchErr) {
+        console.error('  ❌ Error checking for duplicates:', fetchErr.message);
+        skipped++;
+        continue;
+      }
+
+      // Filter for bills with matching due month
+      existingBills = data?.filter(bill => {
+        if (bill.duedate) {
+          const billMonth = bill.duedate.substring(0, 7);
+          return billMonth === dueMonth;
+        }
+        return false;
+      }) || [];
     }
 
     const billRecord = {
@@ -147,19 +164,9 @@ const syncEmailsForUser = async (user) => {
     };
 
     if (existingBills && existingBills.length > 0) {
-      // Update existing record if found
-      const { error: updateErr } = await supabase
-        .from('bills')
-        .update(billRecord)
-        .eq('id', existingBills[0].id);
-
-      if (updateErr) {
-        console.error('  ❌ Update failed:', updateErr.message);
-        skipped++;
-      } else {
-        console.log(`  🔄 Updated: ${card.cardname || card.bankname} — ₹${parsed.amountDue} due ${parsed.dueDate || 'unknown date'}`);
-        processed++;
-      }
+      // Skip duplicate - same card, same month, same amount
+      console.log(`  ⏭️  Skipped (duplicate): ${card.cardname || card.bankname} — ₹${parsed.amountDue} due ${parsed.dueDate || 'unknown date'}`);
+      skipped++;
     } else {
       // Insert new record
       const { error: insertErr } = await supabase

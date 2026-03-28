@@ -129,6 +129,23 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
       const matchesPaid = showPaid ? true : b.status !== 'Paid';
       return matchesSearch && matchesPaid;
     })
+    .reduce((latest, bill) => {
+      // Keep only the latest/final monthly due for each card
+      const existingIndex = latest.findIndex(b => b.last4 === bill.last4);
+      if (existingIndex === -1) {
+        // First bill for this card
+        latest.push(bill);
+      } else {
+        // Keep the bill with the latest due date
+        const existingBill = latest[existingIndex];
+        const existingDate = new Date(existingBill.rawDueDate || 0);
+        const billDate = new Date(bill.rawDueDate || 0);
+        if (billDate > existingDate) {
+          latest[existingIndex] = bill;
+        }
+      }
+      return latest;
+    }, [])
     .sort((a, b) => {
       // Sort by due date in descending order (latest first)
       const dateA = new Date(a.rawDueDate || 0);

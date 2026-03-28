@@ -145,9 +145,31 @@ app.get('/api/dashboard/summary', async (req, res) => {
 
       if (billErr) throw billErr;
 
-      const totalDue = (bills || [])
-        .filter(b => b.status !== 'Paid')
-        .reduce((sum, b) => sum + (b.amountdue || 0), 0);
+      // Filter out paid bills and get only the latest bill per card
+      const nonPaidBills = (bills || []).filter(b => b.status !== 'Paid');
+      
+      // Group by card (using last4digits) and keep only the latest bill per card
+      const latestBillsByCard = nonPaidBills.reduce((latest, bill) => {
+        const cardLast4 = bill.cards?.last4digits || 'unknown';
+        const existingIndex = latest.findIndex(b => (b.cards?.last4digits || 'unknown') === cardLast4);
+        
+        if (existingIndex === -1) {
+          // First bill for this card
+          latest.push(bill);
+        } else {
+          // Keep the bill with the latest due date
+          const existingBill = latest[existingIndex];
+          const existingDate = new Date(existingBill.duedate || 0);
+          const billDate = new Date(bill.duedate || 0);
+          if (billDate > existingDate) {
+            latest[existingIndex] = bill;
+          }
+        }
+        return latest;
+      }, []);
+
+      // Calculate totalDue from the latest bills only
+      const totalDue = latestBillsByCard.reduce((sum, b) => sum + (b.amountdue || 0), 0);
 
       return {
         totalDue,
