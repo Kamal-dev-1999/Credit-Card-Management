@@ -22,6 +22,8 @@
     "dotenv": "^16.6.1",
     "express": "^4.22.1",
     "googleapis": "^171.4.0",
-    "node-cron": "^4.2.1"
+    "ioredis": "^5.10.1",
+    "node-cron": "^4.2.1",
+    "redis": "^5.11.0"
   }
 }

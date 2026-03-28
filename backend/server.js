@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const { supabase } = require('./src/config/supabase');
 const cron = require('node-cron');
+const { initRedis, getCachedData, deleteCache, deleteCachePattern } = require('./src/utils/redisClient.js');
 
 const COLORS = ['#ffb000', '#3b82f6', '#ef4444', '#10b981', '#8b5cf6', '#f59e0b', '#ec4899', '#06b6d2', '#84cc16'];
 const getUniqueColor = (str) => {
@@ -18,6 +19,11 @@ const PORT = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+
+// Initialize Redis
+initRedis().catch(err => {
+  console.warn(`⚠️  Redis initialization warning: ${err.message}`);
+});
 
 // Basic health check endpoint
 app.get('/api/health', (req, res) => {
@@ -38,13 +44,29 @@ const { runSync } = require('./src/controllers/sync.controller');
 // Manual trigger route (for testing)
 app.post('/api/sync', async (req, res) => {
   res.json({ message: 'Sync started in background. Check server logs.' });
-  runSync(); // Non-blocking
+  
+  // Non-blocking sync with cache invalidation
+  runSync().then(async () => {
+    const userEmail = req.headers['x-user-email'] || 'default-user';
+    
+    // ✨ Invalidate related caches after successful sync
+    await deleteCachePattern(`user:*:summary`);
+    await deleteCachePattern(`user:*:daily_insights`);
+    console.log('🔄 Invalidated summary and daily_insights caches after email sync');
+  }).catch(err => {
+    console.error('❌ Sync error:', err.message);
+  });
 });
 
 // Cron: Run every 12 hours (at 6am and 6pm)
-cron.schedule('0 6,18 * * *', () => {
+cron.schedule('0 6,18 * * *', async () => {
   console.log('⏰ Cron fired: running 12-hour email sync...');
-  runSync();
+  await runSync();
+  
+  // ✨ Invalidate caches after sync completes (bills may have changed)
+  await deleteCachePattern('user:*:summary');
+  await deleteCachePattern('user:*:daily_insights');
+  console.log('🔄 Caches invalidated after email sync: summary, daily_insights');
 });
 console.log('⏰ Cron job scheduled: email sync every 12 hours (6am & 6pm)');
 
@@ -109,21 +131,29 @@ app.get('/api/dashboard/graph-data', async (req, res) => {
 // Dashboard Summary API — replaces mock data on the frontend
 app.get('/api/dashboard/summary', async (req, res) => {
   try {
-    const { data: bills, error: billErr } = await supabase
-      .from('bills')
-      .select('id, amountdue, duedate, statementdate, status, cardid, cards(cardname, last4digits, bankname)')
-      .order('duedate', { ascending: true });
+    const userEmail = req.headers['x-user-email'] || 'default-user';
+    const cacheKey = `user:${userEmail}:summary`;
 
-    if (billErr) throw billErr;
+    // Use Cache-Aside pattern
+    const data = await getCachedData(cacheKey, async () => {
+      const { data: bills, error: billErr } = await supabase
+        .from('bills')
+        .select('id, amountdue, duedate, statementdate, status, cardid, cards(cardname, last4digits, bankname)')
+        .order('duedate', { ascending: true });
 
-    const totalDue = (bills || [])
-      .filter(b => b.status !== 'Paid')
-      .reduce((sum, b) => sum + (b.amountdue || 0), 0);
+      if (billErr) throw billErr;
 
-    res.json({
-      totalDue,
-      bills: bills || [],
-    });
+      const totalDue = (bills || [])
+        .filter(b => b.status !== 'Paid')
+        .reduce((sum, b) => sum + (b.amountdue || 0), 0);
+
+      return {
+        totalDue,
+        bills: bills || [],
+      };
+    }, 600); // Cache for 10 minutes
+
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -214,37 +244,43 @@ const { syncAIInsights, generateDailyInsights } = require('./src/services/gemini
 // AI Insights Endpoint: Fetch the most recent stored insights
 app.get('/api/ai/latest', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('ai_insights')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1);
+    const userEmail = req.headers['x-user-email'] || 'default-user';
+    const cacheKey = `user:${userEmail}:daily_insights`;
 
-    if (error) throw error;
-    
-    // If no insights exist, generate them for the first time
-    if (!data || data.length === 0) {
-      console.log('🤖 No AI insights found in DB. Generating first one...');
-      try {
-        const fresh = await syncAIInsights();
-        return res.json(fresh);
-      } catch (genErr) {
-        console.error('❌ AI generation failed:', genErr.message);
-        // Return fallback only if generation truly fails
-        return res.status(503).json({ 
-          error: 'AI insights generation failed', 
-          reason: genErr.message,
-          fallback: {
-            daily_quote: "The first step to financial freedom is knowing your numbers. Sync your data to see your pulse.",
-            projected_savings: 0,
-            card_insights: [],
-            health_explanation: "You haven't added any cards yet. Let's start building your financial profile!"
-          }
-        });
+    const data = await getCachedData(cacheKey, async () => {
+      const { data, error } = await supabase
+        .from('ai_insights')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+      
+      // If no insights exist, generate them for the first time
+      if (!data || data.length === 0) {
+        console.log('🤖 No AI insights found in DB. Generating first one...');
+        try {
+          const fresh = await syncAIInsights();
+          return fresh;
+        } catch (genErr) {
+          console.error('❌ AI generation failed:', genErr.message);
+          return {
+            error: 'AI insights generation failed', 
+            reason: genErr.message,
+            fallback: {
+              daily_quote: "The first step to financial freedom is knowing your numbers. Sync your data to see your pulse.",
+              projected_savings: 0,
+              card_insights: [],
+              health_explanation: "You haven't added any cards yet. Let's start building your financial profile!"
+            }
+          };
+        }
       }
-    }
 
-    res.json(data[0]);
+      return data[0];
+    }, 3600); // Cache for 1 hour
+
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -253,7 +289,14 @@ app.get('/api/ai/latest', async (req, res) => {
 // Trigger manual AI generation
 app.post('/api/ai/sync', async (req, res) => {
   try {
+    const userEmail = req.headers['x-user-email'] || 'default-user';
     const fresh = await syncAIInsights();
+    
+    // ✨ Invalidate daily insights cache after generation
+    const cacheKey = `user:${userEmail}:daily_insights`;
+    await deleteCache(cacheKey);
+    console.log(`🔄 Invalidated cache: ${cacheKey}`);
+    
     res.json(fresh);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -261,9 +304,13 @@ app.post('/api/ai/sync', async (req, res) => {
 });
 
 // Cron: Sync AI Insights every 24 hours at midnight
-cron.schedule('0 0 * * *', () => {
+cron.schedule('0 0 * * *', async () => {
   console.log('⏰ Cron fired: Generating daily AI insights...');
-  syncAIInsights();
+  await syncAIInsights();
+  
+  // ✨ Invalidate all daily insights caches after generation
+  await deleteCachePattern('user:*:daily_insights');
+  console.log('🔄 Invalidated all daily_insights caches via pattern match');
 });
 console.log('⏰ Cron job scheduled: AI Insights every 24 hours (Midnight)');
 
@@ -319,9 +366,16 @@ app.post('/api/cards/discover', async (req, res) => {
 // Cards
 app.get('/api/cards', async (req, res) => {
   try {
-    const { data: cards, error } = await supabase.from('cards').select('*');
-    if (error) throw error;
-    res.json(cards);
+    const userEmail = req.headers['x-user-email'] || 'default-user';
+    const cacheKey = `user:${userEmail}:cards`;
+
+    const data = await getCachedData(cacheKey, async () => {
+      const { data: cards, error } = await supabase.from('cards').select('*');
+      if (error) throw error;
+      return cards;
+    }, 600); // Cache for 10 minutes
+
+    res.json(data);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -330,6 +384,8 @@ app.get('/api/cards', async (req, res) => {
 app.post('/api/cards', async (req, res) => {
   try {
     const { cardName, bankName, last4Digits, cardType, creditLimit, userId, billingCycleDate, colorTheme } = req.body;
+    const userEmail = req.headers['x-user-email'] || 'default-user';
+
     const { data, error } = await supabase
       .from('cards')
       .insert([{ 
@@ -344,6 +400,11 @@ app.post('/api/cards', async (req, res) => {
       .select();
     
     if (error) throw error;
+
+    // Invalidate cards and summary cache
+    await deleteCache(`user:${userEmail}:cards`);
+    await deleteCache(`user:${userEmail}:summary`);
+
     res.status(201).json(data[0]);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -415,6 +476,11 @@ app.patch('/api/bills/:id/status', async (req, res) => {
 
     // Get bill with card details to find user email and create notification
     const bill = data[0];
+    const userEmail = req.headers['x-user-email'] || 'default-user';
+
+    // Invalidate summary cache when bill status changes
+    await deleteCache(`user:${userEmail}:summary`);
+
     if (status === 'Paid' && bill?.cardid) {
       const { data: cardData } = await supabase
         .from('cards')
@@ -434,11 +500,11 @@ app.patch('/api/bills/:id/status', async (req, res) => {
           .limit(1);
 
         if (userData?.[0]?.email) {
-          const userEmail = userData[0].email;
+          const realUserEmail = userData[0].email;
           
           // Create notification
           const notif = {
-            useremail: userEmail,
+            useremail: realUserEmail,
             type: 'payment',
             icon: 'success',
             title: 'Payment Recorded',
@@ -447,11 +513,12 @@ app.patch('/api/bills/:id/status', async (req, res) => {
             createdat: new Date().toISOString()
           };
           
-          await supabase.from('notifications').insert([notif]).catch(err => {
-            console.warn('Could not create notification:', err.message);
-          });
-          
-          console.log(`✅ Payment notification created for user: ${userEmail}`);
+          try {
+            await supabase.from('notifications').insert([notif]);
+            console.log(`✅ Payment notification created for user: ${realUserEmail}`);
+          } catch (notifErr) {
+            console.warn('Could not create notification:', notifErr.message);
+          }
         }
       }
     }
@@ -471,6 +538,196 @@ app.get('/api/expenses', async (req, res) => {
     res.json(expenses);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Chatbot API Endpoint — Powered by Gemini with Knowledge Base
+app.post('/api/chatbot/ask', async (req, res) => {
+  try {
+    const { message, userEmail, conversationHistory = [] } = req.body;
+    
+    if (!message || !message.trim()) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    }
+
+    console.log(`🤖 Chatbot query from ${userEmail}: "${message}"`);
+
+    // Get user's financial context
+    const { data: bills } = await supabase
+      .from('bills')
+      .select('amountdue, duedate, status, cards(bankname, cardname)')
+      .eq('status', 'Unpaid')
+      .limit(5);
+
+    const { data: cards } = await supabase
+      .from('cards')
+      .select('*')
+      .limit(10);
+
+    const { data: expenses } = await supabase
+      .from('expenses')
+      .select('amount, category, date')
+      .limit(20);
+
+    // Retrieve last 10 messages from chatbot history for context
+    const { data: chatHistory } = await supabase
+      .from('chatbot_history')
+      .select('role, message, createdat')
+      .eq('useremail', userEmail)
+      .order('createdat', { ascending: false })
+      .limit(10);
+
+    const previousConversation = (chatHistory || [])
+      .reverse()
+      .map(msg => `${msg.role === 'user' ? 'User' : 'Lana'}: ${msg.message}`)
+      .join('\n');
+
+    // Calculate summary stats
+    const totalUnpaidAmount = (bills || []).reduce((sum, b) => sum + (b.amountdue || 0), 0);
+    const nearestDueDate = (bills || []).length > 0 
+      ? bills.reduce((nearest, b) => new Date(b.duedate) < new Date(nearest.duedate) ? b : nearest).duedate
+      : null;
+
+    const { GoogleGenerativeAI } = require("@google/generative-ai");
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite-preview" });
+
+    const prompt = `You are Lana, a friendly and knowledgeable financial assistant for a credit card management app.
+
+PREVIOUS CONVERSATION CONTEXT:
+${previousConversation || 'This is the start of the conversation.'}
+
+CURRENT USER'S FINANCIAL CONTEXT:
+- Total unpaid bills: ₹${totalUnpaidAmount?.toFixed(2) || '0'}
+- Active cards: ${cards?.length || 0}
+- Pending bills: ${bills?.length || 0}
+- Nearest due date: ${nearestDueDate ? new Date(nearestDueDate).toLocaleDateString('en-IN') : 'N/A'}
+
+Recent Bills: ${JSON.stringify((bills || []).slice(0, 3).map(b => ({
+  bank: b.cards?.bankname,
+  amount: b.amountdue,
+  dueDate: new Date(b.duedate).toLocaleDateString('en-IN')
+})), null, 2)}
+
+Cards: ${JSON.stringify((cards || []).map(c => ({
+  name: c.cardname,
+  bank: c.bankname,
+  limit: c.creditlimit || 'Not provided'
+})), null, 2)}
+
+NEW USER MESSAGE: "${message}"
+
+IMPORTANT INSTRUCTIONS:
+- Reference the conversation history to maintain context and continuity
+- Remember details the user mentioned in previous messages
+- If they're asking follow-up questions, refer back to earlier points
+- Provide personalized financial advice based on their actual data
+- Keep responses concise (2-3 sentences max)
+- Include specific numbers and card names when relevant
+- Be supportive and encouraging
+- Suggest actionable steps when appropriate
+- Always respond in a friendly, conversational tone`;
+
+    const result = await model.generateContent(prompt);
+    const response = result.response.text();
+
+    // Save user message to history
+    try {
+      await supabase
+        .from('chatbot_history')
+        .insert([
+          { useremail: userEmail, role: 'user', message: message.trim() }
+        ]);
+    } catch (err) {
+      console.warn('⚠️ Could not save user message:', err.message);
+    }
+
+    // Save assistant response to history
+    try {
+      await supabase
+        .from('chatbot_history')
+        .insert([
+          { useremail: userEmail, role: 'assistant', message: response }
+        ]);
+    } catch (err) {
+      console.warn('⚠️ Could not save assistant message:', err.message);
+    }
+
+    console.log(`✅ Chatbot response generated for ${userEmail}`);
+
+    res.json({ 
+      response,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Chatbot error:', error.message);
+    res.status(500).json({ error: 'Failed to process chatbot request', details: error.message });
+  }
+});
+
+// Get chatbot conversation history for a user
+app.get('/api/chatbot/history/:userEmail', async (req, res) => {
+  try {
+    const { userEmail } = req.params;
+
+    if (!userEmail) {
+      return res.status(400).json({ error: 'User email is required' });
+    }
+
+    const { data: chatHistory, error } = await supabase
+      .from('chatbot_history')
+      .select('id, role, message, createdat')
+      .eq('useremail', userEmail)
+      .order('createdat', { ascending: true })
+      .limit(50);
+
+    if (error) throw error;
+
+    console.log(`📚 Retrieved ${chatHistory?.length || 0} messages for ${userEmail}`);
+
+    res.json({ 
+      userEmail,
+      messages: chatHistory || [],
+      count: chatHistory?.length || 0
+    });
+
+  } catch (error) {
+    console.error('❌ Get chatbot history error:', error.message);
+    res.status(500).json({ error: 'Failed to retrieve chatbot history', details: error.message });
+  }
+});
+
+// Clear chatbot history (optional)
+app.delete('/api/chatbot/history/:userEmail', async (req, res) => {
+  try {
+    const { userEmail } = req.params;
+
+    if (!userEmail) {
+      return res.status(400).json({ error: 'User email is required' });
+    }
+
+    const { data, error } = await supabase
+      .from('chatbot_history')
+      .delete()
+      .eq('useremail', userEmail);
+
+    if (error) throw error;
+
+    console.log(`🗑️ Cleared chatbot history for ${userEmail}`);
+
+    res.json({ 
+      message: 'Chatbot history cleared',
+      deletedCount: data?.length || 0
+    });
+
+  } catch (error) {
+    console.error('❌ Clear chatbot history error:', error.message);
+    res.status(500).json({ error: 'Failed to clear chatbot history', details: error.message });
   }
 });
 

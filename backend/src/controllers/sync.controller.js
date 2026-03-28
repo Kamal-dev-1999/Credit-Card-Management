@@ -2,6 +2,7 @@
  * sync.controller.js
  * Orchestrates the full Gmail → Rule-Based Parse → Supabase upsert pipeline.
  * 100% rule-based. Zero AI / API tokens used.
+ * Uses distributed locking to prevent concurrent Gmail API calls.
  */
 
 'use strict';
@@ -9,6 +10,7 @@
 const { supabase } = require('../config/supabase');
 const { fetchCreditCardEmails } = require('../services/gmailService');
 const { processEmail } = require('../utils/parserRules');
+const { acquireLock, releaseLock } = require('../utils/redisClient');
 
 /**
  * Determines bill status based on due date vs today.
@@ -182,32 +184,54 @@ const syncEmailsForUser = async (user) => {
 /**
  * runSync() — Fetches all authenticated users and syncs each inbox.
  * Called by the cron job (every 12 hours) or the manual POST /api/sync endpoint.
+ * Uses distributed locking to prevent concurrent Gmail API calls.
  */
 const runSync = async () => {
-  console.log('\n⏰ [Cron] Starting scheduled email sync...');
-
-  const { data: users, error } = await supabase
-    .from('users')
-    .select('id, email, google_refresh_token')
-    .not('google_refresh_token', 'is', null);
-
-  if (error) {
-    console.error('❌ Could not fetch users:', error.message);
-    return;
+  const lockKey = 'global:email_sync_lock';
+  
+  // 🔒 Try to acquire lock (5 minute expiry)
+  const lockAcquired = await acquireLock(lockKey, 300);
+  
+  if (!lockAcquired) {
+    console.warn('⚠️  Email sync already running. Skipping this iteration to prevent duplicate API calls.');
+    return { success: false, reason: 'Lock already held by another sync process' };
   }
 
-  if (!users || users.length === 0) {
-    console.log('📭 No authenticated users to sync.');
-    return;
+  try {
+    console.log('\n⏰ [Cron] Starting scheduled email sync... (🔒 Lock acquired)');
+
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, email, google_refresh_token')
+      .not('google_refresh_token', 'is', null);
+
+    if (error) {
+      console.error('❌ Could not fetch users:', error.message);
+      return { success: false, error: error.message };
+    }
+
+    if (!users || users.length === 0) {
+      console.log('📭 No authenticated users to sync.');
+      return { success: true, reason: 'No users to sync' };
+    }
+
+    console.log(`👥 Syncing ${users.length} user account(s)...`);
+
+    for (const user of users) {
+      await syncEmailsForUser(user);
+    }
+
+    console.log('\n✅ [Cron] All users synced.\n');
+    return { success: true, usersProcessed: users.length };
+    
+  } catch (err) {
+    console.error('❌ Sync error:', err.message);
+    return { success: false, error: err.message };
+  } finally {
+    // 🔓 Always release the lock
+    await releaseLock(lockKey);
+    console.log('🔓 Email sync lock released.');
   }
-
-  console.log(`👥 Syncing ${users.length} user account(s)...`);
-
-  for (const user of users) {
-    await syncEmailsForUser(user);
-  }
-
-  console.log('\n✅ [Cron] All users synced.\n');
 };
 
 module.exports = { runSync, syncEmailsForUser };

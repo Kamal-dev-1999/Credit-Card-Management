@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquareText, X, Send, Sparkles, Bot } from 'lucide-react';
+import { MessageSquareText, X, Send, Sparkles, Bot, Trash2 } from 'lucide-react';
 
 const initialMessages = [
   { sender: 'ai', text: 'Hi there! I am your Lana Financial Assistant. How can I help you manage your wealth today?' }
@@ -11,7 +11,45 @@ const GlobalChatbot = () => {
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [loading, setLoading] = useState(true);
   const chatEndRef = useRef(null);
+
+  // Load conversation history on mount or when user email changes
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const userEmail = localStorage.getItem('lana_user_email');
+        if (!userEmail) {
+          setLoading(false);
+          return;
+        }
+
+        console.log('📚 [Chatbot] Loading conversation history for:', userEmail);
+        const response = await fetch(`http://127.0.0.1:5000/api/chatbot/history/${userEmail}`);
+        
+        if (!response.ok) throw new Error('Failed to load history');
+        
+        const data = await response.json();
+        console.log('✅ [Chatbot] Loaded', data.count, 'previous messages');
+
+        if (data.messages && data.messages.length > 0) {
+          // Convert database format to display format
+          const loadedMessages = data.messages.map(msg => ({
+            sender: msg.role === 'assistant' ? 'ai' : 'user',
+            text: msg.message
+          }));
+          setMessages([initialMessages[0], ...loadedMessages]);
+        }
+      } catch (err) {
+        console.warn('⚠️ [Chatbot] Could not load history:', err);
+        // Continue with initial messages if history fails
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadHistory();
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -19,7 +57,7 @@ const GlobalChatbot = () => {
     }
   }, [messages, isTyping, isOpen]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
     
     // Add user message
@@ -27,22 +65,72 @@ const GlobalChatbot = () => {
     setInput('');
     setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
-      let aiResponse = { sender: 'ai', text: '' };
-      const query = input.toLowerCase();
+    try {
+      const userEmail = localStorage.getItem('lana_user_email') || 'unknown-user';
       
-      if (query.includes('due') || query.includes('bill')) {
-        aiResponse.text = "You have ₹1,24,850.15 in total upcoming dues. The Purple Zota Card bill of ₹82,050.50 is due next on April 18th.";
-      } else if (query.includes('score') || query.includes('health')) {
-        aiResponse.text = "Your Credit Health is currently Good (28% utilization). To hit Excellent, try keeping the PD Bank card balance below 30% of its limit.";
-      } else {
-        aiResponse.text = "I've noted that! I'm constantly analyzing your synced accounts to find the best savings and rewards strategies for you.";
+      // Prepare conversation history (excluding initial AI message)
+      const conversationHistory = messages
+        .slice(1) // Skip initial greeting
+        .map(msg => ({
+          role: msg.sender === 'user' ? 'user' : 'assistant',
+          message: msg.text
+        }));
+
+      console.log('🤖 [Chatbot] Sending message with', conversationHistory.length, 'previous messages');
+      
+      const response = await fetch('http://127.0.0.1:5000/api/chatbot/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          message: input,
+          userEmail,
+          conversationHistory
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.statusText}`);
       }
 
-      setMessages(prev => [...prev, aiResponse]);
+      const data = await response.json();
+      console.log('✅ [Chatbot] Response received');
+      
+      setMessages(prev => [...prev, { 
+        sender: 'ai', 
+        text: data.response || "I'm having trouble processing that. Please try again."
+      }]);
+    } catch (err) {
+      console.error('❌ [Chatbot] Error:', err);
+      setMessages(prev => [...prev, { 
+        sender: 'ai', 
+        text: `Sorry, I encountered an error: ${err.message}. Please check your server connection.`
+      }]);
+    } finally {
       setIsTyping(false);
-    }, 1200);
+    }
+  };
+
+  const clearChatHistory = async () => {
+    try {
+      const userEmail = localStorage.getItem('lana_user_email');
+      if (!userEmail) return;
+
+      console.log('🗑️ [Chatbot] Clearing chat history...');
+      
+      const response = await fetch(`http://127.0.0.1:5000/api/chatbot/history/${userEmail}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) throw new Error('Failed to clear history');
+
+      // Reset messages to initial state
+      setMessages(initialMessages);
+      console.log('✅ [Chatbot] Chat history cleared');
+    } catch (err) {
+      console.error('❌ [Chatbot] Error clearing history:', err);
+    }
   };
 
   return (
@@ -52,7 +140,7 @@ const GlobalChatbot = () => {
         onClick={() => setIsOpen(true)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        className={`fixed bottom-6 right-6 lg:bottom-10 lg:right-10 w-16 h-16 rounded-full bg-gradient-to-r from-purple-900 to-primary text-white shadow-xl shadow-purple-900/30 flex items-center justify-center z-50 transition-opacity ${isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+        className={`fixed bottom-6 right-6 lg:bottom-10 lg:right-10 w-16 h-16 rounded-full bg-gradient-to-r from-purple-900 to-primary text-white shadow-xl shadow-purple-900/30 flex items-center justify-center z-[99999] transition-opacity ${isOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
       >
         <MessageSquareText size={28} />
         {/* Unread indicator dot */}
@@ -67,7 +155,7 @@ const GlobalChatbot = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 50, scale: 0.9 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="fixed bottom-6 right-6 lg:bottom-10 lg:right-10 w-[calc(100vw-3rem)] md:w-[400px] h-[580px] max-h-[calc(100vh-6rem)] bg-white rounded-3xl shadow-2xl border border-gray-100 z-50 flex flex-col overflow-hidden"
+            className="fixed bottom-6 right-6 lg:bottom-10 lg:right-10 w-[calc(100vw-3rem)] md:w-[400px] h-[580px] max-h-[calc(100vh-6rem)] bg-white rounded-3xl shadow-2xl border border-gray-100 z-[99999] flex flex-col overflow-hidden"
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-gray-900 to-primary p-5 flex justify-between items-center text-white shrink-0">
@@ -83,12 +171,21 @@ const GlobalChatbot = () => {
                   </div>
                 </div>
               </div>
-              <button 
-                onClick={() => setIsOpen(false)}
-                className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors"
-              >
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={clearChatHistory}
+                  className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors" 
+                  title="Clear chat history"
+                >
+                  <Trash2 size={18} />
+                </button>
+                <button 
+                  onClick={() => setIsOpen(false)}
+                  className="w-8 h-8 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Chat Area */}

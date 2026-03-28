@@ -55,22 +55,54 @@ const markNotificationAsReadController = async (req, res) => {
   try {
     const { notificationId } = req.body;
 
+    console.log(`📝 Attempting to mark notification as read: ${notificationId}`);
+
     if (!notificationId) {
+      console.warn('⚠️  No notification ID provided');
       return res.status(400).json({ error: 'Notification ID required' });
     }
 
-    const { error } = await supabaseAdmin
+    // First verify the notification exists
+    const { data: notification, error: fetchError } = await supabaseAdmin
+      .from('notifications')
+      .select('id, read')
+      .eq('id', notificationId)
+      .single();
+
+    if (fetchError) {
+      console.error('❌ Error fetching notification:', fetchError);
+      throw fetchError;
+    }
+
+    if (!notification) {
+      console.warn(`⚠️  Notification not found: ${notificationId}`);
+      return res.status(404).json({ error: 'Notification not found' });
+    }
+
+    console.log(`📊 Current notification status - ID: ${notification.id}, Read: ${notification.read}`);
+
+    // Update the notification
+    const { data: updated, error: updateError } = await supabaseAdmin
       .from('notifications')
       .update({ read: true })
-      .eq('id', notificationId);
+      .eq('id', notificationId)
+      .select('id, read');
 
-    if (error) throw error;
-    
-    console.log(`✅ Notification marked as read: ${notificationId}`);
-    res.json({ success: true, message: 'Notification marked as read' });
+    if (updateError) {
+      console.error('❌ Error updating notification:', updateError);
+      throw updateError;
+    }
+
+    if (updated && updated.length > 0) {
+      console.log(`✅ Notification marked as read: ${notificationId} - New status: ${JSON.stringify(updated[0])}`);
+      res.json({ success: true, message: 'Notification marked as read', notification: updated[0] });
+    } else {
+      console.warn(`⚠️  Update returned no results for notification: ${notificationId}`);
+      res.json({ success: true, message: 'Notification marked as read' });
+    }
   } catch (err) {
-    console.error('Error marking notification as read:', err);
-    res.status(500).json({ error: 'Failed to mark notification as read' });
+    console.error('❌ Error marking notification as read:', err);
+    res.status(500).json({ error: 'Failed to mark notification as read', details: err.message });
   }
 };
 
@@ -81,23 +113,44 @@ const markAllNotificationsAsReadController = async (req, res) => {
   try {
     const userEmail = req.headers['x-user-email'];
 
+    console.log(`📝 Attempting to mark all notifications as read for user: ${userEmail}`);
+
     if (!userEmail) {
+      console.warn('⚠️  No user email provided in headers');
       return res.status(401).json({ error: 'User email required' });
     }
 
-    const { error } = await supabaseAdmin
+    // First count unread notifications
+    const { data: unreadBefore, error: countError } = await supabaseAdmin
       .from('notifications')
-      .update({ read: true })
+      .select('id', { count: 'exact' })
       .eq('useremail', userEmail)
       .eq('read', false);
 
-    if (error) throw error;
-    
-    console.log(`✅ All notifications marked as read for user: ${userEmail}`);
-    res.json({ success: true, message: 'All notifications marked as read' });
+    if (countError) {
+      console.error('❌ Error counting unread notifications:', countError);
+    } else {
+      console.log(`📊 Found ${unreadBefore?.length || 0} unread notifications for ${userEmail}`);
+    }
+
+    // Update all unread notifications
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from('notifications')
+      .update({ read: true })
+      .eq('useremail', userEmail)
+      .eq('read', false)
+      .select('id');
+
+    if (updateError) {
+      console.error('❌ Error marking all notifications as read:', updateError);
+      throw updateError;
+    }
+
+    console.log(`✅ Marked ${updated?.length || 0} notifications as read for user: ${userEmail}`);
+    res.json({ success: true, message: 'All notifications marked as read', updatedCount: updated?.length || 0 });
   } catch (err) {
-    console.error('Error marking all notifications as read:', err);
-    res.status(500).json({ error: 'Failed to mark all notifications as read' });
+    console.error('❌ Error marking all notifications as read:', err);
+    res.status(500).json({ error: 'Failed to mark all notifications as read', details: err.message });
   }
 };
 

@@ -2,14 +2,40 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bell, Check, DollarSign, AlertTriangle, Sparkles, ArrowRight, Trash2 } from 'lucide-react';
 
-const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead }) => {
+const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead, onMarkAsRead }) => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [marking, setMarking] = useState(null); // Track which notification is being marked
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const handleMarkAsRead = async (notificationId) => {
+    console.log('🔔 [NotificationCenter] handleMarkAsRead called with ID:', notificationId);
+    console.log('🔔 [NotificationCenter] onMarkAsRead prop is:', onMarkAsRead ? 'DEFINED' : 'UNDEFINED');
+    
+    if (!onMarkAsRead) {
+      console.warn('⚠️ [NotificationCenter] WARNING: onMarkAsRead prop is undefined! Function will not be called.');
+      return;
+    }
+    
+    setMarking(notificationId);
+    try {
+      console.log('🔔 [NotificationCenter] Calling onMarkAsRead...');
+      await onMarkAsRead(notificationId);
+      console.log('🔔 [NotificationCenter] onMarkAsRead completed successfully');
+    } catch (err) {
+      console.error('❌ [NotificationCenter] Error in handleMarkAsRead:', err);
+      console.error('❌ [NotificationCenter] Error details:', {
+        message: err.message,
+        stack: err.stack
+      });
+    } finally {
+      setMarking(null);
+    }
+  };
 
   const getIcon = (icon) => {
     const iconProps = { size: 20 };
@@ -48,7 +74,11 @@ const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead }) =
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: idx * 0.05 }}
-            className={`p-4 flex gap-3 transition-all duration-200 hover:bg-gradient-to-r ${!notif.read ? 'hover:from-yellow-50/50 hover:to-transparent bg-yellow-50/40' : 'hover:from-gray-50 hover:to-transparent'}`}
+            onClick={() => {
+              console.log('🔔 [NotificationCenter] Notification clicked. ID:', notif.id, 'Read status:', notif.read);
+              !notif.read && handleMarkAsRead(notif.id);
+            }}
+            className={`p-4 flex gap-3 transition-all duration-200 cursor-pointer group ${!notif.read ? 'hover:from-yellow-50/50 hover:to-transparent bg-yellow-50/40 hover:bg-yellow-50/60' : 'hover:from-gray-50 hover:to-transparent'}`}
           >
             {getIcon(notif.icon)}
             <div className="flex-1 min-w-0">
@@ -70,7 +100,18 @@ const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead }) =
                 </a>
               )}
             </div>
-            {!notif.read && <div className="w-2 h-2 rounded-full bg-yellow-400 mt-2 shrink-0 animate-pulse"></div>}
+            {!notif.read && (
+              <div className="flex flex-col items-center gap-1">
+                {marking === notif.id ? (
+                  <div className="w-2 h-2 rounded-full bg-blue-400 mt-2 animate-pulse"></div>
+                ) : (
+                  <div className="w-2 h-2 rounded-full bg-yellow-400 mt-2 shrink-0 group-hover:scale-150 transition-transform"></div>
+                )}
+                <div className="text-[10px] text-gray-400 font-semibold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                  Mark as read
+                </div>
+              </div>
+            )}
           </motion.div>
         ))
       )}
@@ -120,7 +161,15 @@ const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead }) =
                 {unreadCount > 0 && (
                   <div className="p-4 border-t border-gray-100 bg-gray-50/50">
                     <button 
-                      onClick={markAllAsRead}
+                      onClick={() => {
+                        console.log('🔔 [NotificationCenter] Mark All as Read button clicked');
+                        console.log('🔔 [NotificationCenter] markAllAsRead prop is:', markAllAsRead ? 'DEFINED' : 'UNDEFINED');
+                        if (markAllAsRead) {
+                          markAllAsRead();
+                        } else {
+                          console.warn('⚠️ [NotificationCenter] WARNING: markAllAsRead prop is undefined!');
+                        }
+                      }}
                       className="w-full py-3 bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-white font-semibold rounded-lg transition-all shadow-md hover:shadow-lg"
                     >
                       Mark All as Read
@@ -153,7 +202,15 @@ const NotificationCenter = ({ isOpen, onClose, notifications, markAllAsRead }) =
                 </div>
                 {unreadCount > 0 && (
                   <button 
-                    onClick={markAllAsRead}
+                    onClick={() => {
+                      console.log('🔔 [NotificationCenter] Mark all as read link clicked (header)');
+                      console.log('🔔 [NotificationCenter] markAllAsRead prop is:', markAllAsRead ? 'DEFINED' : 'UNDEFINED');
+                      if (markAllAsRead) {
+                        markAllAsRead();
+                      } else {
+                        console.warn('⚠️ [NotificationCenter] WARNING: markAllAsRead prop is undefined!');
+                      }
+                    }}
                     className="text-xs font-semibold text-primary hover:text-yellow-600 transition-colors hover:bg-yellow-50/50 px-2 py-1 rounded"
                   >
                     Mark all as read

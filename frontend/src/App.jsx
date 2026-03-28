@@ -48,16 +48,82 @@ function App() {
 
   const markAllAsRead = async () => {
     try {
+      console.log('🔔 [App.jsx] markAllAsRead called');
       const userEmail = localStorage.getItem('lana_user_email');
-      await fetch('http://127.0.0.1:5000/api/notifications/mark-all-read', {
+      console.log('🔔 [App.jsx] User email:', userEmail);
+      console.log('🔔 [App.jsx] Sending fetch request to mark-all-read...');
+      
+      const response = await fetch('http://127.0.0.1:5000/api/notifications/mark-all-read', {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'x-user-email': userEmail || ''
         }
       });
+
+      console.log('🔔 [App.jsx] Response received. Status:', response.status, 'StatusText:', response.statusText);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to mark all notifications as read: ${response.statusText}`);
+      }
+
+      console.log('🔔 [App.jsx] Updating local state - marking all notifications as read...');
+      setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
+      
+      console.log('🔔 [App.jsx] Fetching fresh notifications from server...');
       fetchNotifications(); // Refresh notifications
+      
+      console.log('🔔 [App.jsx] All notifications marked as read successfully!');
     } catch (err) {
-      console.error('Failed to mark all as read:', err);
+      console.error('❌ [App.jsx] ERROR marking all notifications as read:', err);
+      console.error('❌ [App.jsx] Error details:', {
+        message: err.message,
+        stack: err.stack
+      });
+    }
+  };
+
+  const markNotificationAsRead = async (notificationId) => {
+    console.log('🔔 [App.jsx] markNotificationAsRead called with ID:', notificationId);
+    try {
+      const userEmail = localStorage.getItem('lana_user_email');
+      console.log('🔔 [App.jsx] User email:', userEmail);
+      console.log('🔔 [App.jsx] Sending fetch request to mark-read...');
+      
+      const response = await fetch('http://127.0.0.1:5000/api/notifications/mark-read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-email': userEmail || ''
+        },
+        body: JSON.stringify({ notificationId })
+      });
+
+      console.log('🔔 [App.jsx] Response received. Status:', response.status, 'StatusText:', response.statusText);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to mark notification as read: ${response.statusText}`);
+      }
+
+      // Update local state immediately for better UX
+      console.log('🔔 [App.jsx] Updating local state...');
+      setNotifications(prev =>
+        prev.map(notif =>
+          notif.id === notificationId ? { ...notif, read: true } : notif
+        )
+      );
+
+      // Fetch fresh data from server
+      console.log('🔔 [App.jsx] Fetching fresh notifications from server...');
+      fetchNotifications();
+      console.log('🔔 [App.jsx] Notification marked as read successfully!');
+    } catch (err) {
+      console.error('❌ [App.jsx] ERROR marking notification as read:', err);
+      console.error('❌ [App.jsx] Error details:', {
+        message: err.message,
+        stack: err.stack
+      });
+      throw err;
     }
   };
 
@@ -156,11 +222,13 @@ function App() {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col p-5 sm:p-8 lg:p-10 overflow-y-auto bg-[#fafbfc] transition-all duration-300 relative scroll-smooth">
         
-        <Header 
-          notifications={notifications} 
-          setNotifications={setNotifications} 
-          unreadCount={unreadCount} 
-        />
+      <Header 
+        notifications={notifications} 
+        setNotifications={setNotifications} 
+        unreadCount={unreadCount}
+        onMarkAsRead={markNotificationAsRead}
+        onMarkAllAsRead={markAllAsRead}
+      />
 
         {renderContent()}
 
