@@ -18,7 +18,8 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increase limit for base64 image uploads
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Initialize Redis
 initRedis().catch(err => {
@@ -734,6 +735,202 @@ app.delete('/api/chatbot/history/:userEmail', async (req, res) => {
 // AI Suggestion Engine Placeholder
 app.post('/api/suggestions', async (req, res) => {
   res.json({ message: 'AI Suggestion Engine endpoint ready to be implemented' });
+});
+
+// AI Agent: Extract and Save Card from Image
+app.post('/api/chatbot/extract-card-from-image', async (req, res) => {
+  try {
+    const { imageBase64, userEmail } = req.body;
+
+    // ✅ Security: Validate input
+    if (!imageBase64 || !userEmail) {
+      return res.status(400).json({ error: 'Image and user email are required' });
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(500).json({ error: 'AI service not configured' });
+    }
+
+    // ✅ Security: Limit file size (base64 string size check)
+    const fileSizeInBytes = Buffer.byteLength(imageBase64, 'utf-8');
+    const maxSizeInBytes = 5 * 1024 * 1024; // 5MB
+    if (fileSizeInBytes > maxSizeInBytes) {
+      return res.status(413).json({ error: 'Image is too large (max 5MB)' });
+    }
+
+    // ✅ Security: Rate limiting - check upload count in last hour
+    const { data: recentUploads } = await supabase
+      .from('chatbot_history')
+      .select('createdat')
+      .eq('useremail', userEmail)
+      .gt('createdat', new Date(Date.now() - 60 * 60 * 1000).toISOString())
+      .filter('role', 'eq', 'card_extraction');
+
+    const uploadCount = recentUploads?.length || 0;
+    if (uploadCount >= 5) {
+      return res.status(429).json({ error: 'Too many card uploads. Please try again in 1 hour.' });
+    }
+
+    console.log(`🔐 [AI Agent] Processing card image for: ${userEmail}`);
+
+    // ✅ Use Gemini Vision API to extract card details
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-3.1-flash-lite-preview' });
+
+    const extractionPrompt = `You are a secure card data extraction AI. Analyze this credit card image and extract the following information ONLY if visible:
+    
+    Return ONLY a valid JSON object with these fields:
+    {
+      "bankName": "extracted bank name or 'Unknown'",
+      "cardName": "extracted card brand (Visa, Mastercard, RuPay, Amex, etc) or 'Unknown'",
+      "last4Digits": "last 4 digits ONLY (e.g., '1234') - NEVER the full number",
+      "expiryMonth": "expiry month as 2-digit number (e.g., '12') or null",
+      "expiryYear": "expiry year as 4-digit number (e.g., '2025') or null",
+      "holderName": "cardholder name or null",
+      "isValidCard": true or false
+    }
+    
+    SECURITY RULES:
+    1. NEVER extract or return full card numbers
+    2. Extract ONLY last 4 digits
+    3. Only return numbers for expiry (no special characters)
+    4. Validate the card looks legitimate before returning true for isValidCard
+    5. If not a card image, set isValidCard to false
+    6. Return null for any field you cannot confidently extract`;
+
+    const response = await model.generateContent([
+      {
+        inlineData: {
+          mimeType: 'image/jpeg',
+          data: imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '')
+        }
+      },
+      { text: extractionPrompt }
+    ]);
+
+    const responseText = response.response.text();
+    console.log(`📸 [AI Agent] Raw response:`, responseText);
+
+    // Parse and validate extracted data
+    let extractedData;
+    try {
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        return res.status(400).json({ error: 'Could not extract card information. This may not be a valid credit card image.' });
+      }
+      extractedData = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      console.error('❌ JSON parsing error:', parseErr.message);
+      return res.status(400).json({ error: 'Failed to parse card data' });
+    }
+
+    // ✅ Security: Validate extracted data
+    if (!extractedData.isValidCard) {
+      return res.status(400).json({ error: 'The image does not appear to be a valid credit card. Please upload a clear card image.' });
+    }
+
+    if (!extractedData.last4Digits || extractedData.last4Digits.length !== 4 || !/^\d{4}$/.test(extractedData.last4Digits)) {
+      return res.status(400).json({ error: 'Could not extract valid last 4 digits. Please ensure the card number is visible.' });
+    }
+
+    // ✅ Security: Get user from Supabase to verify email
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('email', userEmail)
+      .single();
+
+    if (!userData) {
+      return res.status(401).json({ error: 'User not found. Please sign in first.' });
+    }
+
+    // ✅ Security: Sanitize inputs
+    const sanitizedData = {
+      userId: userData.id,
+      bankName: (extractedData.bankName || 'Other').substring(0, 100),
+      cardName: (extractedData.cardName || 'Unknown').substring(0, 100),
+      last4Digits: extractedData.last4Digits.slice(-4),
+      expiryMonth: extractedData.expiryMonth ? parseInt(extractedData.expiryMonth) : null,
+      expiryYear: extractedData.expiryYear ? parseInt(extractedData.expiryYear) : null,
+      holderName: extractedData.holderName ? extractedData.holderName.substring(0, 100) : null
+    };
+
+    // Validate expiry
+    if (sanitizedData.expiryMonth && (sanitizedData.expiryMonth < 1 || sanitizedData.expiryMonth > 12)) {
+      return res.status(400).json({ error: 'Invalid card expiry month' });
+    }
+    if (sanitizedData.expiryYear && (sanitizedData.expiryYear < 2020 || sanitizedData.expiryYear > 2050)) {
+      return res.status(400).json({ error: 'Invalid card expiry year' });
+    }
+
+    // ✅ Check if card already exists (prevent duplicates)
+    const { data: existingCard } = await supabase
+      .from('cards')
+      .select('id')
+      .eq('userid', userData.id)
+      .eq('last4digits', sanitizedData.last4Digits)
+      .single();
+
+    if (existingCard) {
+      return res.status(409).json({ error: 'A card with this last 4 digits already exists in your account.' });
+    }
+
+    // ✅ Save card to database
+    const { data: newCard, error: cardError } = await supabase
+      .from('cards')
+      .insert([
+        {
+          userid: userData.id,
+          bankname: sanitizedData.bankName,
+          cardname: sanitizedData.cardName,
+          last4digits: sanitizedData.last4Digits,
+          billingcycledate: 1 // Default: 1st of month (user can update later)
+        }
+      ])
+      .select();
+
+    if (cardError) {
+      console.error('❌ Card save error:', cardError);
+      return res.status(500).json({ error: 'Failed to save card to database' });
+    }
+
+    // ✅ Clear cache so the new card appears immediately
+    await deleteCache(`user:${userEmail}:cards`);
+    await deleteCache(`user:${userEmail}:summary`);
+
+    // Log the action for audit trail
+    try {
+      await supabase
+        .from('chatbot_history')
+        .insert([
+          {
+            useremail: userEmail,
+            role: 'card_extraction',
+            message: `Card added via image: ${sanitizedData.bankName} ***${sanitizedData.last4Digits}`
+          }
+        ]);
+    } catch (auditErr) {
+      console.warn('⚠️ Audit log error:', auditErr.message);
+    }
+
+    console.log(`✅ [AI Agent] Card successfully saved for ${userEmail}: ${sanitizedData.bankName} ***${sanitizedData.last4Digits}`);
+
+    res.json({
+      success: true,
+      message: `Card added successfully: ${sanitizedData.cardName} ending in ${sanitizedData.last4Digits}`,
+      card: {
+        id: newCard[0].id,
+        bankName: sanitizedData.bankName,
+        cardName: sanitizedData.cardName,
+        last4Digits: sanitizedData.last4Digits
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Card extraction error:', error.message);
+    res.status(500).json({ error: 'Failed to process card image', details: error.message });
+  }
 });
 
 app.listen(PORT, () => {

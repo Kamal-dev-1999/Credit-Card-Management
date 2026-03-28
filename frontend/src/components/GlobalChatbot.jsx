@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MessageSquareText, X, Send, Sparkles, Bot, Trash2 } from 'lucide-react';
+import { MessageSquareText, X, Send, Sparkles, Bot, Trash2, Upload, Image as ImageIcon } from 'lucide-react';
 
 const initialMessages = [
   { sender: 'ai', text: 'Hi there! I am your Lana Financial Assistant. How can I help you manage your wealth today?' }
@@ -12,6 +12,9 @@ const GlobalChatbot = () => {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isUploadingCard, setIsUploadingCard] = useState(false);
+  const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
 
   // Load conversation history on mount or when user email changes
@@ -56,6 +59,117 @@ const GlobalChatbot = () => {
       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isTyping, isOpen]);
+
+  const compressImage = (base64String) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set dimensions - max 1200px width while maintaining aspect ratio
+        let width = img.width;
+        let height = img.height;
+        const maxWidth = 1200;
+        
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Compress to JPEG with 0.8 quality
+        const compressed = canvas.toDataURL('image/jpeg', 0.8);
+        console.log(`📸 [Chatbot] Image compressed: ${(base64String.length / 1024).toFixed(2)}KB → ${(compressed.length / 1024).toFixed(2)}KB`);
+        resolve(compressed);
+      };
+      img.src = base64String;
+    });
+  };
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('❌ Please select a valid image file');
+      return;
+    }
+
+    // Validate file size (5MB max - before compression)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('❌ Image is too large (max 5MB)');
+      return;
+    }
+
+    // Show preview and compress
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const originalBase64 = e.target.result;
+      console.log(`📸 [Chatbot] Original image size: ${(file.size / 1024).toFixed(2)}KB`);
+      
+      try {
+        const compressedBase64 = await compressImage(originalBase64);
+        setImagePreview(compressedBase64);
+      } catch (err) {
+        console.error('❌ [Chatbot] Image compression error:', err);
+        alert('❌ Failed to process image. Please try another image.');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadCardImage = async () => {
+    if (!imagePreview) return;
+
+    setIsUploadingCard(true);
+    setMessages(prev => [...prev, { sender: 'user', text: '📸 Uploading card image...' }]);
+
+    try {
+      const userEmail = localStorage.getItem('lana_user_email') || 'unknown-user';
+
+      console.log('🔐 [Chatbot] Extracting card from image...');
+
+      const response = await fetch('http://127.0.0.1:5000/api/chatbot/extract-card-from-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageBase64: imagePreview,
+          userEmail
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to extract card');
+      }
+
+      console.log('✅ [Chatbot] Card successfully extracted and saved');
+
+      // Show success message
+      setMessages(prev => [...prev, {
+        sender: 'ai',
+        text: `🎉 ${data.message}\n\nYour ${data.card.cardName} card ending in ${data.card.last4Digits} has been added to your account!`
+      }]);
+
+      // Clear preview
+      setImagePreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err) {
+      console.error('❌ [Chatbot] Card upload error:', err);
+      setMessages(prev => [...prev, {
+        sender: 'ai',
+        text: `❌ Sorry, I couldn't process the card image:\n\n${err.message}\n\nPlease make sure:\n✓ The card number is clearly visible\n✓ All four corners are visible\n✓ The image is well-lit and not blurry`
+      }]);
+    } finally {
+      setIsUploadingCard(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -217,6 +331,38 @@ const GlobalChatbot = () => {
               <div ref={chatEndRef} />
             </div>
 
+            {/* Image Preview */}
+            {imagePreview && (
+              <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 bg-blue-50 border-t border-blue-100 flex items-center gap-3 shrink-0"
+              >
+                <img src={imagePreview} alt="Card preview" className="h-24 rounded-lg border-2 border-blue-200" />
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-blue-900 mb-2">📸 Card image ready</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={uploadCardImage}
+                      disabled={isUploadingCard}
+                      className="flex-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-all disabled:opacity-50"
+                    >
+                      {isUploadingCard ? '⏳ Processing...' : '✓ Save Card'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setImagePreview(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                      className="px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-semibold rounded-lg transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {/* Input Area */}
             <div className="p-4 bg-white border-t border-gray-50 flex items-center gap-2 shrink-0">
                <input 
@@ -227,6 +373,22 @@ const GlobalChatbot = () => {
                  placeholder="Type your financial question..."
                  className="flex-1 bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:bg-white transition-all shadow-inner"
                />
+               <input
+                 ref={fileInputRef}
+                 type="file"
+                 accept="image/*"
+                 onChange={handleImageSelect}
+                 className="hidden"
+                 disabled={isUploadingCard}
+               />
+               <button 
+                 onClick={() => fileInputRef.current?.click()}
+                 disabled={isUploadingCard}
+                 title="Upload card image (AI will extract details)"
+                 className="w-12 h-12 rounded-xl bg-blue-400 hover:bg-blue-500 text-white flex items-center justify-center transition-transform active:scale-95 disabled:opacity-50 disabled:active:scale-100 shrink-0 shadow-md shadow-blue-200"
+               >
+                 <Upload size={18} />
+               </button>
                <button 
                  onClick={handleSend}
                  disabled={!input.trim()}
