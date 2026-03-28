@@ -31,6 +31,8 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
   const [loadingId, setLoadingId] = useState(null);
   const [lastSynced, setLastSynced] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchBills = () => {
     setLoading(true);
@@ -120,12 +122,29 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
     }
   };
 
-  const filteredBills = bills.filter(b => {
-    const matchesSearch = (b.cardName + b.last4 + b.statementDate + b.dueDate)
-      .toLowerCase().includes(search.toLowerCase());
-    const matchesPaid = showPaid ? true : b.status !== 'Paid';
-    return matchesSearch && matchesPaid;
-  });
+  const filteredBills = bills
+    .filter(b => {
+      const matchesSearch = (b.cardName + b.last4 + b.statementDate + b.dueDate)
+        .toLowerCase().includes(search.toLowerCase());
+      const matchesPaid = showPaid ? true : b.status !== 'Paid';
+      return matchesSearch && matchesPaid;
+    })
+    .sort((a, b) => {
+      // Sort by due date in descending order (latest first)
+      const dateA = new Date(a.rawDueDate || 0);
+      const dateB = new Date(b.rawDueDate || 0);
+      return dateB - dateA;
+    });
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredBills.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedBills = filteredBills.slice(startIndex, startIndex + itemsPerPage);
+
+  // Reset to page 1 when search or filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, showPaid]);
 
   const getStatusPill = (status) => {
     switch (status) {
@@ -200,7 +219,7 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
                   </div>
                 </td>
               </tr>
-            ) : filteredBills.length > 0 ? filteredBills.map((row) => (
+            ) : filteredBills.length > 0 ? paginatedBills.map((row) => (
               <tr key={row.id} className="hover:bg-yellow-50/30 transition-colors group">
                 <td className="px-4 py-5 border-b border-gray-50 group-last:border-0">
                   <div className="flex items-center gap-3">
@@ -253,6 +272,49 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Controls */}
+      {filteredBills.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-100">
+          <div className="text-sm text-gray-500 font-medium">
+            Showing <span className="font-bold text-gray-700">{startIndex + 1}</span> to <span className="font-bold text-gray-700">{Math.min(startIndex + itemsPerPage, filteredBills.length)}</span> of <span className="font-bold text-gray-700">{filteredBills.length}</span> payments
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:border-primary hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:text-gray-600 transition-colors"
+            >
+              ← Previous
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-10 h-10 rounded-lg font-medium text-sm transition-all ${
+                    currentPage === pageNum
+                      ? 'bg-primary text-white shadow-sm'
+                      : 'border border-gray-200 text-gray-600 hover:border-primary hover:text-primary'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+            </div>
+            
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:border-primary hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-gray-200 disabled:hover:text-gray-600 transition-colors"
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
