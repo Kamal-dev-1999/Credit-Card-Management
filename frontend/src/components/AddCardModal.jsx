@@ -75,11 +75,12 @@ const AddCardModal = ({ isOpen, onClose, onAdd, editingCard = null }) => {
         cardData.userId = currentUser.id;
       }
 
-      const url = isEditMode ? `/api/cards/${editingCard.id}` : '/api/cards';
+      const url = isEditMode ? `http://localhost:5000/api/cards/${editingCard.id}` : 'http://localhost:5000/api/cards';
       const method = isEditMode ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
+        credentials: 'include',  // Include httpOnly cookie
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(cardData)
       });

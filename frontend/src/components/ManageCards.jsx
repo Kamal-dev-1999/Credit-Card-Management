@@ -23,7 +23,9 @@ const ManageCards = () => {
   const fetchCards = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/cards');
+      const response = await fetch('http://localhost:5000/api/cards', {
+        credentials: 'include'  // Include httpOnly cookie
+      });
       const data = await response.json();
       
       const mappedCards = data.map(card => ({
@@ -111,12 +113,20 @@ const ManageCards = () => {
   const handleDeleteCard = async (cardToDelete) => {
     if (window.confirm(`Are you sure you want to delete ${cardToDelete.bankName} card?`)) {
       try {
-        const response = await fetch(`/api/cards/${cardToDelete.id}`, { method: 'DELETE' });
+        const response = await fetch(`http://localhost:5000/api/cards/${cardToDelete.id}`, { 
+          method: 'DELETE',
+          credentials: 'include'  // Include httpOnly cookie
+        });
         if (response.ok) {
           setCards(cards.filter(c => c.id !== cardToDelete.id));
+        } else {
+          const error = await response.text();
+          console.error('Delete failed:', error);
+          alert('Failed to delete card');
         }
       } catch (error) {
         console.error('Error deleting card:', error);
+        alert('Error deleting card: ' + error.message);
       }
     }
   };

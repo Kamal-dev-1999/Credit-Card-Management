@@ -65,7 +65,7 @@ router.get('/summary', async (req, res) => {
  * PATCH /api/bills/:id/status
  * Update the status of a bill (Paid, Upcoming, Overdue)
  */
-router.patch('/bills/:id/status', async (req, res) => {
+router.patch('/:id/status', async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;

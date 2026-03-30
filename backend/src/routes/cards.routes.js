@@ -81,4 +81,66 @@ router.post('/', async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/cards/:id
+ * Delete a card by ID
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('cards')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    console.log(`✅ [Cards] Card ${id} deleted successfully`);
+    res.json({ success: true, message: 'Card deleted successfully' });
+  } catch (err) {
+    console.error('❌ [Cards] Error deleting card:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * PUT /api/cards/:id
+ * Update a card by ID
+ */
+router.put('/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { bankName, cardName, last4Digits, cardType, colorTheme, billingCycleDate } = req.body;
+
+    // Basic validation
+    if (last4Digits && (last4Digits.length !== 4 || !/^\d{4}$/.test(last4Digits))) {
+      return res.status(400).json({ error: 'last4Digits must be exactly 4 numbers' });
+    }
+
+    const updateData = {};
+    if (bankName) updateData.bankname = bankName;
+    if (cardName) updateData.cardname = cardName;
+    if (last4Digits) updateData.last4digits = last4Digits;
+    if (cardType) updateData.cardtype = cardType;
+    if (colorTheme) updateData.colortheme = colorTheme;
+    if (billingCycleDate !== undefined) updateData.billingcycledate = billingCycleDate;
+
+    const { data, error } = await supabase
+      .from('cards')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    console.log(`✅ [Cards] Card ${id} updated successfully`);
+    res.json(data);
+  } catch (err) {
+    console.error('❌ [Cards] Error updating card:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

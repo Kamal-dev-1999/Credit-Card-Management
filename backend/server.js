@@ -101,6 +101,15 @@ try {
   console.warn('⚠️  AI routes not found:', err.message);
 }
 
+// Import and mount chatbot routes
+try {
+  const chatbotRoutes = require('./src/routes/chatbot.routes');
+  app.use('/api/chatbot', chatbotRoutes);
+  console.log('✅ Chatbot routes loaded');
+} catch (err) {
+  console.warn('⚠️  Chatbot routes not found:', err.message);
+}
+
 // ── Error Handling ──
 app.use((err, req, res, next) => {
   console.error('❌ Error:', err.message);

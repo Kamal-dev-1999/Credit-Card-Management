@@ -10,8 +10,14 @@ const router = express.Router();
  */
 router.get('/latest', async (req, res) => {
   try {
+    const userEmail = req.user?.email;
+    
+    if (!userEmail || userEmail === 'anonymous-user') {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
     const bypassCache = req.query.nocache === 'true';
-    const cacheKey = 'ai:daily_insights';
+    const cacheKey = `ai:${userEmail}:daily_insights`;
 
     // Default response structure
     const defaultInsights = {
@@ -35,7 +41,17 @@ router.get('/latest', async (req, res) => {
       }
     }
 
-    res.json(defaultInsights);
+    // If no cache, generate fresh insights
+    const insights = await generateDailyInsights();
+    const response = {
+      daily_quote: insights.daily_quote || defaultInsights.daily_quote,
+      projected_savings: typeof insights.projected_savings === 'number' ? insights.projected_savings : 0,
+      card_insights: Array.isArray(insights.card_insights) ? insights.card_insights : [],
+      health_explanation: insights.health_explanation || defaultInsights.health_explanation,
+      generated_at: new Date().toISOString()
+    };
+
+    res.json(response);
   } catch (error) {
     console.error('❌ [AI Latest] Error:', error.message);
     res.json({
@@ -53,6 +69,12 @@ router.get('/latest', async (req, res) => {
  */
 router.post('/sync', async (req, res) => {
   try {
+    const userEmail = req.user?.email;
+    
+    if (!userEmail || userEmail === 'anonymous-user') {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
     const insights = await generateDailyInsights();
 
     // Structure response with all required fields
