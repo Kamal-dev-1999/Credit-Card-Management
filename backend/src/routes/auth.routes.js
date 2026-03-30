@@ -17,19 +17,25 @@ router.get('/google/callback', handleGoogleCallback);
  */
 router.get('/me', (req, res) => {
   try {
+    console.log('🔐 [Auth /me] Request received');
+    console.log('🔐 [Auth /me] Cookies:', Object.keys(req.cookies));
+    console.log('🔐 [Auth /me] auth_token present:', !!req.cookies.auth_token);
+    
     const token = req.cookies.auth_token;
 
     if (!token) {
+      console.log('🔐 [Auth /me] No auth_token cookie found - returning 401');
       return res.status(401).json({ error: 'Not authenticated' });
     }
 
     const decoded = verifyToken(token);
+    console.log('🔐 [Auth /me] Token verified successfully for:', decoded.email);
     res.json({
       userId: decoded.userId,
       email: decoded.email,
     });
   } catch (err) {
-    console.warn('⚠️  [Auth] Invalid token:', err.message);
+    console.warn('⚠️  [Auth /me] Invalid token:', err.message);
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 });
@@ -40,10 +46,12 @@ router.get('/me', (req, res) => {
  */
 router.post('/logout', (req, res) => {
   try {
+    const isProduction = process.env.NODE_ENV === 'production';
+    
     res.clearCookie('auth_token', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'none',
       path: '/',
     });
 

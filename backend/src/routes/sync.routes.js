@@ -10,6 +10,7 @@ const router = express.Router();
 router.get('/parse-emails', async (req, res) => {
   try {
     const userEmail = req.user?.email || 'default-user';
+    
     console.log(`📧 [Sync] Starting email sync for user: ${userEmail}`);
     
     const result = await runSync(userEmail);

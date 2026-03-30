@@ -36,8 +36,13 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
 
   const fetchBills = () => {
     setLoading(true);
-    fetch('http://127.0.0.1:5000/api/dashboard/summary?nocache=true')
-      .then(r => r.json())
+    fetch('http://127.0.0.1:5000/api/dashboard/summary?nocache=true', {
+      credentials: 'include'  // Include httpOnly cookie
+    })
+      .then(r => {
+        if (!r.ok) throw new Error(`API Error: ${r.status}`);
+        return r.json();
+      })
       .then(data => {
         const normalized = (data.bills || []).map(b => ({
           id: b.id,
@@ -55,7 +60,10 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
         setLastSynced(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(err => {
+        console.error('❌ Failed to fetch bills:', err);
+        setLoading(false);
+      });
   };
 
   // Full refresh: Sync Gmail first, then fetch bills
@@ -68,7 +76,8 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
       // Step 1: Sync emails from Gmail
       console.log('📧 [RecentBills] Fetching and parsing emails from Gmail...');
       const syncResp = await fetch('http://127.0.0.1:5000/api/test/parse-emails', { 
-        method: 'GET' 
+        method: 'GET',
+        credentials: 'include'  // Include httpOnly cookie
       });
       
       if (!syncResp.ok) {
@@ -99,6 +108,7 @@ const RecentBillsTable = ({ onPaySuccess, refreshKey }) => {
     try {
       const res = await fetch(`http://127.0.0.1:5000/api/bills/${id}/status`, {
         method: 'PATCH',
+        credentials: 'include',  // Include httpOnly cookie
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
       });

@@ -78,17 +78,20 @@ const handleGoogleCallback = async (req, res) => {
     // ── Generate JWT and set httpOnly cookie ──
     const jwtToken = generateToken(user.id, userEmail);
 
+    const isProduction = process.env.NODE_ENV === 'production';
+
     res.cookie('auth_token', jwtToken, {
       httpOnly: true,        // Prevents XSS attacks
-      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-      sameSite: 'strict',    // Prevents CSRF attacks
+      secure: false,         // Allow HTTP in development
+      sameSite: 'lax',       // Works with top-level navigation across ports
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: '/',
     });
 
     console.log(`✅ User authenticated: ${userEmail}`);
+    console.log(`✅ Cookie set with token (httpOnly, sameSite=lax)`);
     
-    // Redirect back to frontend without exposing sensitive data in URL
+    // Redirect back to frontend - IMPORTANT: Use same origin as frontend (localhost, not 127.0.0.1)
     res.redirect('http://localhost:5173/?auth=success');
   } catch (error) {
     console.error('❌ Error handling Google Callback:', error);

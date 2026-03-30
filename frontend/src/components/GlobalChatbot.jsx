@@ -29,7 +29,7 @@ const GlobalChatbot = () => {
         }
 
         console.log('📚 [Chatbot] Loading conversation history for:', userEmail);
-        const response = await fetch(`http://127.0.0.1:5000/api/chatbot/history/${userEmail}`, {
+        const response = await fetch(`http://localhost:5000/api/chatbot/history/${userEmail}`, {
           credentials: 'include' // Include cookies
         });
         
@@ -135,7 +135,7 @@ const GlobalChatbot = () => {
     try {
       console.log('🔐 [Chatbot] Extracting card from image...');
 
-      const response = await fetch('http://127.0.0.1:5000/api/chatbot/extract-card-from-image', {
+      const response = await fetch('http://localhost:5000/api/chatbot/extract-card-from-image', {
         method: 'POST',
         credentials: 'include', // Include cookies
         headers: { 'Content-Type': 'application/json' },
@@ -192,7 +192,7 @@ const GlobalChatbot = () => {
 
       console.log('🤖 [Chatbot] Sending message with', conversationHistory.length, 'previous messages');
       
-      const response = await fetch('http://127.0.0.1:5000/api/chatbot/ask', {
+      const response = await fetch('http://localhost:5000/api/chatbot/ask', {
         method: 'POST',
         credentials: 'include', // Include cookies
         headers: {
@@ -233,7 +233,7 @@ const GlobalChatbot = () => {
 
       console.log('🗑️ [Chatbot] Clearing chat history...');
       
-      const response = await fetch(`http://127.0.0.1:5000/api/chatbot/history/${userEmail}`, {
+      const response = await fetch(`http://localhost:5000/api/chatbot/history/${userEmail}`, {
         method: 'DELETE',
         credentials: 'include' // Include cookies
       });

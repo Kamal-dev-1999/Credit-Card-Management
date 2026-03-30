@@ -9,14 +9,22 @@ const DueSummaryCard = ({ activeCard, refreshKey }) => {
 
   const fetchSummary = () => {
     setLoading(true);
-    fetch('http://127.0.0.1:5000/api/dashboard/summary')
-      .then(r => r.json())
+    fetch('http://localhost:5000/api/dashboard/summary', {
+      credentials: 'include'  // Include httpOnly cookie
+    })
+      .then(r => {
+        if (!r.ok) throw new Error(`API Error: ${r.status}`);
+        return r.json();
+      })
       .then(data => {
         setTotalDue(data.totalDue ?? null);
         setLastSync(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }));
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(err => {
+        console.error('❌ Failed to fetch summary:', err);
+        setLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -26,7 +34,10 @@ const DueSummaryCard = ({ activeCard, refreshKey }) => {
   const handleManualSync = async () => {
     setIsSyncing(true);
     try {
-      await fetch('/api/sync', { method: 'POST' });
+      await fetch('http://localhost:5000/api/test/parse-emails', { 
+        method: 'GET',
+        credentials: 'include'  // Include httpOnly cookie
+      });
       // Allow some time for background sync
       setTimeout(() => {
         fetchSummary();

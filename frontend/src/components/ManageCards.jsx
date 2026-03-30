@@ -66,8 +66,9 @@ const ManageCards = () => {
     console.log('🔍 [ManageCards] Starting card discovery...');
     try {
       console.log('📨 [ManageCards] Calling /api/cards/discover endpoint...');
-      const resp = await fetch('http://127.0.0.1:5000/api/cards/discover', { 
+      const resp = await fetch('http://localhost:5000/api/cards/discover', { 
         method: 'POST',
+        credentials: 'include',  // Include httpOnly cookie
         headers: { 'Content-Type': 'application/json' }
       });
       

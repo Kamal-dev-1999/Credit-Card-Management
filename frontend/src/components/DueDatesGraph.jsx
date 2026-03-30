@@ -66,7 +66,9 @@ const DueDatesGraph = ({ refreshKey }) => {
   const fetchGraphData = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/dashboard/graph-data?v=1');
+      const res = await fetch('http://localhost:5000/api/dashboard/graph-data?v=1', {
+        credentials: 'include'  // Include httpOnly cookie
+      });
       const json = await res.json();
       setGraphData(json.data || []);
       setSeriesKeys(json.keys || []);

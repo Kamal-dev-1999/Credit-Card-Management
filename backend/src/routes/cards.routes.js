@@ -10,8 +10,13 @@ const router = express.Router();
  */
 router.get('/', async (req, res) => {
   try {
-    const userEmail = req.user?.email || 'default-user';
+    const userEmail = req.user?.email;
     
+    if (!userEmail || userEmail === 'anonymous-user') {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    // TODO: Filter by useremail once column is added to database
     const { data: cards, error } = await supabase
       .from('cards')
       .select('*');

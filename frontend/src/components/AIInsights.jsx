@@ -13,8 +13,8 @@ const AIInsights = () => {
   const fetchInsights = async (skipCache = false) => {
     try {
       const url = skipCache 
-        ? 'http://127.0.0.1:5000/api/ai/latest?nocache=true'
-        : 'http://127.0.0.1:5000/api/ai/latest';
+        ? 'http://localhost:5000/api/ai/latest?nocache=true'
+        : 'http://localhost:5000/api/ai/latest';
       const res = await fetch(url, { credentials: 'include' });
       const json = await res.json();
       setData(json || {});
@@ -29,7 +29,7 @@ const AIInsights = () => {
   const manualSync = async () => {
     setSyncing(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/ai/sync', { 
+      const res = await fetch('http://localhost:5000/api/ai/sync', { 
         method: 'POST',
         credentials: 'include'
       });

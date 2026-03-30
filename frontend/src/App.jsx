@@ -26,7 +26,7 @@ function App() {
   // Fetch notifications from backend
   const fetchNotifications = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/notifications', {
+      const res = await fetch('http://localhost:5000/api/notifications', {
         credentials: 'include', // Send cookies
       });
       const data = await res.json();
@@ -47,7 +47,7 @@ function App() {
 
   const markAllAsRead = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/notifications/mark-all-read', {
+      const response = await fetch('http://localhost:5000/api/notifications/mark-all-read', {
         method: 'POST',
         credentials: 'include', // Send cookies
         headers: {
@@ -70,7 +70,7 @@ function App() {
 
   const markNotificationAsRead = async (notificationId) => {
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/notifications/mark-read', {
+      const response = await fetch('http://localhost:5000/api/notifications/mark-read', {
         method: 'POST',
         credentials: 'include', // Send cookies
         headers: {
@@ -105,7 +105,7 @@ function App() {
 
   const clearAllNotifications = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:5000/api/notifications/clear-all', {
+      const response = await fetch('http://localhost:5000/api/notifications/clear-all', {
         method: 'DELETE',
         credentials: 'include', // Send cookies
         headers: {

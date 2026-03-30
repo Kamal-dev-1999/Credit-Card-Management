@@ -22,7 +22,11 @@ const authMiddleware = (req, res, next) => {
       email: payload.email,
     };
 
-    console.log(`✅ Authenticated: ${req.user.email}`);
+    // Log successful authentication ONLY for dashboard/cards/etc routes, not for every request
+    if (!req.path.includes('/health') && !req.path.includes('/api/notifications')) {
+      console.log(`✅ Authenticated: ${req.user.email}`);
+    }
+    
     next();
   } catch (err) {
     console.warn(`⚠️  Token verification failed: ${err.message}`);

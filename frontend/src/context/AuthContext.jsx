@@ -21,7 +21,7 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(true);
       console.log('🔐 [Auth] Fetching user info from /api/auth/me...');
       
-      const response = await fetch('http://127.0.0.1:5000/api/auth/me', {
+      const response = await fetch('http://localhost:5000/api/auth/me', {
         credentials: 'include', // Include the httpOnly cookie
       });
 
@@ -85,7 +85,7 @@ export const AuthProvider = ({ children }) => {
    */
   const logout = async () => {
     try {
-      await fetch('http://127.0.0.1:5000/api/auth/logout', {
+      await fetch('http://localhost:5000/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });

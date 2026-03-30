@@ -83,7 +83,7 @@ const Sidebar = ({ activePage = 'dashboard', setActivePage = () => {}, onSignOut
           </div>
         ) : (
           <button
-            onClick={() => window.location.href = '/api/auth/google'}
+            onClick={() => window.location.href = 'http://localhost:5000/api/auth/google'}
             className="flex items-center justify-center gap-2 w-11/12 bg-white hover:bg-yellow-50 text-gray-700 border border-gray-200 hover:border-primary py-3.5 rounded-2xl font-semibold text-sm transition-all active:scale-95 shadow-sm"
           >
             <Mail size={16} className="text-red-500" />

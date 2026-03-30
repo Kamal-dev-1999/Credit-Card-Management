@@ -9,11 +9,17 @@ const router = express.Router();
  */
 router.get('/summary', async (req, res) => {
   try {
-    const userEmail = req.user?.email || 'default-user';
+    const userEmail = req.user?.email;
+    
+    if (!userEmail || userEmail === 'anonymous-user') {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
     const cacheKey = `user:${userEmail}:summary`;
     const bypassCache = req.query.nocache === 'true';
 
     // For now, fetch directly (can add caching later)
+    // TODO: Filter by useremail once column is added to database
     const { data: bills, error: billErr } = await supabase
       .from('bills')
       .select('id, amountdue, duedate, statementdate, status, cardid, cards(cardname, last4digits, bankname)')
@@ -91,6 +97,13 @@ router.patch('/bills/:id/status', async (req, res) => {
  */
 router.get('/dues-distribution', async (req, res) => {
   try {
+    const userEmail = req.user?.email;
+    
+    if (!userEmail || userEmail === 'anonymous-user') {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+    
+    // TODO: Filter by useremail once column is added to database
     const { data: bills, error } = await supabase
       .from('bills')
       .select('amountdue, cards(bankname)')

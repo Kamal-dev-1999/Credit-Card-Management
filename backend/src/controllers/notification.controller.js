@@ -8,9 +8,9 @@ const getNotificationsController = async (req, res) => {
     // Get user email from JWT token
     const userEmail = req.user?.email;
     
-    if (!userEmail) {
-      console.log('⚠️  No user email provided in headers');
-      return res.status(200).json({ notifications: [] });
+    if (!userEmail || userEmail === 'anonymous-user') {
+      console.log('⚠️  User not authenticated for notifications');
+      return res.status(401).json({ error: 'Not authenticated' });
     }
 
     // Fetching notifications...
