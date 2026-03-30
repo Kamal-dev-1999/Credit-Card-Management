@@ -1,28 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Menu, LogOut, Mail } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import NotificationCenter from './NotificationCenter';
 
 const Header = ({ notifications, setNotifications, unreadCount, onMarkAsRead, onMarkAllAsRead, onClearAll }) => {
+  const { userEmail, logout } = useAuth();
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [userEmail, setUserEmail] = useState(localStorage.getItem('lana_user_email') || '');
 
   useEffect(() => {}, [onMarkAsRead, onMarkAllAsRead, onClearAll]);
-
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const email = urlParams.get('email');
-    if (email) {
-      localStorage.setItem('lana_user_email', email);
-      setUserEmail(email);
-      // Clean the URL without reloading
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
-
-  const handleSignOut = () => {
-    localStorage.removeItem('lana_user_email');
-    setUserEmail('');
-  };
 
   return (
     <div className="flex justify-between items-center mb-8 relative z-[1000]">

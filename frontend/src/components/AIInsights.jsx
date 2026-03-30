@@ -15,11 +15,12 @@ const AIInsights = () => {
       const url = skipCache 
         ? 'http://127.0.0.1:5000/api/ai/latest?nocache=true'
         : 'http://127.0.0.1:5000/api/ai/latest';
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: 'include' });
       const json = await res.json();
-      setData(json);
+      setData(json || {});
     } catch (err) {
       console.error('Failed to fetch AI insights:', err);
+      setData({});
     } finally {
       setLoading(false);
     }
@@ -28,9 +29,12 @@ const AIInsights = () => {
   const manualSync = async () => {
     setSyncing(true);
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/ai/sync', { method: 'POST' });
+      const res = await fetch('http://127.0.0.1:5000/api/ai/sync', { 
+        method: 'POST',
+        credentials: 'include'
+      });
       const json = await res.json();
-      setData(json);
+      setData(json || {});
       // After sync, refresh with fresh data (bypass cache)
       await fetchInsights(true);
     } catch (err) {
@@ -57,7 +61,12 @@ const AIInsights = () => {
     );
   }
 
-  const insights = data || {
+  const insights = data ? {
+    daily_quote: data.daily_quote || "Your wealth grows from what you keep, not just what you make.",
+    projected_savings: typeof data.projected_savings === 'number' ? data.projected_savings : 0,
+    card_insights: Array.isArray(data.card_insights) ? data.card_insights : [],
+    health_explanation: data.health_explanation || "Keep maintaining on-time payments to see your health score rise."
+  } : {
     daily_quote: "Your wealth grows from what you keep, not just what you make.",
     projected_savings: 0,
     card_insights: [],

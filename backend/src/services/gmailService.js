@@ -1,17 +1,40 @@
 const { google } = require('googleapis');
+const { decrypt } = require('../utils/encryption');
 require('dotenv').config();
 
 /**
  * Creates an authenticated Gmail client using the stored refresh token.
+ * Automatically decrypts the token if it's encrypted.
  */
 const createGmailClient = (refreshToken) => {
+  if (!refreshToken) {
+    throw new Error('No refresh token provided');
+  }
+
+  let decryptedToken = refreshToken;
+
+  // Try to decrypt if it looks like encrypted data (base64)
+  try {
+    // Check if it's likely encrypted (base64-like pattern, not a standard OAuth token)
+    if (refreshToken.length > 50 && !/^[A-Za-z0-9_-]+$/.test(refreshToken)) {
+      decryptedToken = decrypt(refreshToken);
+      console.log('✅ [Gmail] Refresh token decrypted successfully');
+    } else {
+      // Standard OAuth refresh token format
+      console.log('✅ [Gmail] Using plaintext refresh token');
+    }
+  } catch (err) {
+    console.warn('⚠️  [Gmail] Decryption failed, attempting with plaintext:', err.message);
+    // Continue with original token if decryption fails
+  }
+
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
     process.env.GOOGLE_REDIRECT_URI
   );
 
-  oauth2Client.setCredentials({ refresh_token: refreshToken });
+  oauth2Client.setCredentials({ refresh_token: decryptedToken });
   return google.gmail({ version: 'v1', auth: oauth2Client });
 };
 

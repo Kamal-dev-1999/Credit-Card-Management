@@ -5,8 +5,8 @@ const { supabaseAdmin } = require('../config/supabase.js');
  */
 const getNotificationsController = async (req, res) => {
   try {
-    // Get user email from headers (sent by frontend)
-    const userEmail = req.headers['x-user-email'];
+    // Get user email from JWT token
+    const userEmail = req.user?.email;
     
     if (!userEmail) {
       console.log('⚠️  No user email provided in headers');
@@ -111,7 +111,7 @@ const markNotificationAsReadController = async (req, res) => {
  */
 const markAllNotificationsAsReadController = async (req, res) => {
   try {
-    const userEmail = req.headers['x-user-email'];
+    const userEmail = req.user?.email;
 
     // Marking all notifications as read...
 
@@ -159,7 +159,7 @@ const markAllNotificationsAsReadController = async (req, res) => {
  */
 const clearAllNotificationsController = async (req, res) => {
   try {
-    const userEmail = req.headers['x-user-email'];
+    const userEmail = req.user?.email;
 
     // Clearing all notifications...
 

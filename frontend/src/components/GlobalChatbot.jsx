@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquareText, X, Send, Sparkles, Bot, Trash2, Upload, Image as ImageIcon } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const initialMessages = [
   { sender: 'ai', text: 'Hi there! I am your Lana Financial Assistant. How can I help you manage your wealth today?' }
 ];
 
 const GlobalChatbot = () => {
+  const { userEmail } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState(initialMessages);
   const [input, setInput] = useState('');
@@ -21,14 +23,15 @@ const GlobalChatbot = () => {
   useEffect(() => {
     const loadHistory = async () => {
       try {
-        const userEmail = localStorage.getItem('lana_user_email');
         if (!userEmail) {
           setLoading(false);
           return;
         }
 
         console.log('📚 [Chatbot] Loading conversation history for:', userEmail);
-        const response = await fetch(`http://127.0.0.1:5000/api/chatbot/history/${userEmail}`);
+        const response = await fetch(`http://127.0.0.1:5000/api/chatbot/history/${userEmail}`, {
+          credentials: 'include' // Include cookies
+        });
         
         if (!response.ok) throw new Error('Failed to load history');
         
@@ -130,16 +133,15 @@ const GlobalChatbot = () => {
     setMessages(prev => [...prev, { sender: 'user', text: '📸 Uploading card image...' }]);
 
     try {
-      const userEmail = localStorage.getItem('lana_user_email') || 'unknown-user';
-
       console.log('🔐 [Chatbot] Extracting card from image...');
 
       const response = await fetch('http://127.0.0.1:5000/api/chatbot/extract-card-from-image', {
         method: 'POST',
+        credentials: 'include', // Include cookies
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageBase64: imagePreview,
-          userEmail
+          userEmail: userEmail || 'unknown-user'
         })
       });
 
@@ -180,8 +182,6 @@ const GlobalChatbot = () => {
     setIsTyping(true);
 
     try {
-      const userEmail = localStorage.getItem('lana_user_email') || 'unknown-user';
-      
       // Prepare conversation history (excluding initial AI message)
       const conversationHistory = messages
         .slice(1) // Skip initial greeting
@@ -194,12 +194,13 @@ const GlobalChatbot = () => {
       
       const response = await fetch('http://127.0.0.1:5000/api/chatbot/ask', {
         method: 'POST',
+        credentials: 'include', // Include cookies
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
           message: input,
-          userEmail,
+          userEmail: userEmail || 'unknown-user',
           conversationHistory
         })
       });
@@ -228,13 +229,13 @@ const GlobalChatbot = () => {
 
   const clearChatHistory = async () => {
     try {
-      const userEmail = localStorage.getItem('lana_user_email');
       if (!userEmail) return;
 
       console.log('🗑️ [Chatbot] Clearing chat history...');
       
       const response = await fetch(`http://127.0.0.1:5000/api/chatbot/history/${userEmail}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        credentials: 'include' // Include cookies
       });
 
       if (!response.ok) throw new Error('Failed to clear history');

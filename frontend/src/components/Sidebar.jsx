@@ -7,13 +7,13 @@ import {
   LogOut,
   Mail
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const Sidebar = ({ activePage = 'dashboard', setActivePage = () => {}, onSignOut = () => {} }) => {
-  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('lana_user_email'));
-  const userEmail = localStorage.getItem('lana_user_email');
+  const { userEmail, isLoading } = useAuth();
+  const isLoggedIn = !!userEmail && !isLoading;
 
   const handleSignOut = () => {
-    setIsLoggedIn(false);
     onSignOut();
   };
 

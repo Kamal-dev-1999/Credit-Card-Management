@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, CreditCard, Plus } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const AddCardModal = ({ isOpen, onClose, onAdd, editingCard = null }) => {
+  const { userEmail } = useAuth();
   const [formData, setFormData] = useState({
     bankName: '',
     nickname: '',
@@ -47,7 +49,6 @@ const AddCardModal = ({ isOpen, onClose, onAdd, editingCard = null }) => {
     }
 
     try {
-      const userEmail = localStorage.getItem('lana_user_email');
       if (!userEmail) {
         setError('Please sign in with Gmail first');
         return;
@@ -66,8 +67,9 @@ const AddCardModal = ({ isOpen, onClose, onAdd, editingCard = null }) => {
 
       if (!isEditMode) {
         // Fetch userId only for new cards
-        const usersRes = await fetch('/api/users');
-        const users = await usersRes.json();
+        const usersRes = await fetch('/api/users', {
+          credentials: 'include'
+        });
         const currentUser = users.find(u => u.email === userEmail);
         if (!currentUser) throw new Error('User not found');
         cardData.userId = currentUser.id;
