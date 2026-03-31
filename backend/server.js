@@ -1,10 +1,18 @@
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
 require('dotenv').config();
 
 // Import middleware
 const authMiddleware = require('./src/middleware/auth.middleware');
+const { 
+  generalLimiter, 
+  authLimiter, 
+  syncLimiter, 
+  discoverLimiter, 
+  apiLimiter 
+} = require('./src/middleware/rateLimiter');
 
 // Import routes
 const authRoutes = require('./src/routes/auth.routes');
@@ -12,6 +20,31 @@ const notificationRoutes = require('./src/routes/notification.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// ── Security Middleware ──
+// Add security headers with Helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", 'data:', 'https:'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      connectSrc: ["'self'", 'http://localhost:5000', 'http://localhost:5173']
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false
+}));
+
+// ── Rate Limiting ──
+// Apply general rate limiter to all routes
+app.use(generalLimiter);
+
+// Apply strict auth rate limiting to login endpoints
+app.use('/api/auth/google', authLimiter);
+app.use('/api/auth/google/callback', authLimiter);
 
 // ── Middleware ──
 // Parse cookies
@@ -53,12 +86,12 @@ app.get('/health', (req, res) => {
 
 // ── Routes ──
 app.use('/api/auth', authRoutes);
-app.use('/api/notifications', notificationRoutes);
+app.use('/api/notifications', apiLimiter, notificationRoutes);
 
 // Import and mount card routes
 try {
   const cardRoutes = require('./src/routes/cards.routes');
-  app.use('/api/cards', cardRoutes);
+  app.use('/api/cards', apiLimiter, cardRoutes);
   console.log('✅ Card routes loaded');
 } catch (err) {
   console.warn('⚠️  Card routes not found:', err.message);
@@ -67,8 +100,8 @@ try {
 // Import and mount dashboard/bills routes
 try {
   const dashboardRoutes = require('./src/routes/dashboard.routes');
-  app.use('/api/dashboard', dashboardRoutes);
-  app.use('/api/bills', dashboardRoutes); // Also mount bills endpoints at /api/bills
+  app.use('/api/dashboard', apiLimiter, dashboardRoutes);
+  app.use('/api/bills', apiLimiter, dashboardRoutes); // Also mount bills endpoints at /api/bills
   console.log('✅ Dashboard routes loaded');
 } catch (err) {
   console.warn('⚠️  Dashboard routes not found:', err.message);
@@ -77,7 +110,7 @@ try {
 // Import and mount sync routes
 try {
   const syncRoutes = require('./src/routes/sync.routes');
-  app.use('/api/test', syncRoutes);
+  app.use('/api/test', syncLimiter, syncRoutes);
   console.log('✅ Sync routes loaded');
 } catch (err) {
   console.warn('⚠️  Sync routes not found:', err.message);
@@ -86,7 +119,7 @@ try {
 // Import and mount news routes
 try {
   const newsRoutes = require('./src/routes/news.routes');
-  app.use('/api/news', newsRoutes);
+  app.use('/api/news', apiLimiter, newsRoutes);
   console.log('✅ News routes loaded');
 } catch (err) {
   console.warn('⚠️  News routes not found:', err.message);
@@ -95,7 +128,7 @@ try {
 // Import and mount AI routes
 try {
   const aiRoutes = require('./src/routes/ai.routes');
-  app.use('/api/ai', aiRoutes);
+  app.use('/api/ai', apiLimiter, aiRoutes);
   console.log('✅ AI routes loaded');
 } catch (err) {
   console.warn('⚠️  AI routes not found:', err.message);
@@ -104,7 +137,7 @@ try {
 // Import and mount chatbot routes
 try {
   const chatbotRoutes = require('./src/routes/chatbot.routes');
-  app.use('/api/chatbot', chatbotRoutes);
+  app.use('/api/chatbot', apiLimiter, chatbotRoutes);
   console.log('✅ Chatbot routes loaded');
 } catch (err) {
   console.warn('⚠️  Chatbot routes not found:', err.message);
