@@ -59,7 +59,8 @@ const syncEmailsForUser = async (user) => {
 
     // Rule-based extraction — zero AI
     const parsed = processEmail(email);
-
+    // ⚠️  PRIVACY: Clear email body from memory after parsing to prevent data leaks
+    email.body = null;
     if (!parsed) {
       skipped++;
       continue;

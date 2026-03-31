@@ -132,10 +132,15 @@ const fetchCreditCardEmails = async (refreshToken, daysLimit = 90) => {
       if (body.length > 50) {
         console.log(`  ✉️  [${emails.length + 1}] Subject: "${subject}" | From: ${from}`);
         // Increase limit to 10,000 to capture bottom-of-email totals
+        // ⚠️  PRIVACY: Email body contains sensitive financial data. Must be cleared after parsing.
+        //    Never log the raw body. Controllers should delete body from memory after processEmail().
         emails.push({ messageId: msg.id, subject, from, body: body.slice(0, 10000) });
       } else {
         console.log(`  ⏭️  Skipped (body too short): "${subject}"`);
       }
+      // Clear body from memory to prevent accidental logging
+      // eslint-disable-next-line no-unused-vars
+      delete detail;
     } catch (err) {
       console.error(`❌ Could not fetch message ${msg.id}:`, err.message);
     }

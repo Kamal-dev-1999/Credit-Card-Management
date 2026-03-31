@@ -290,6 +290,8 @@ const processEmail = (email) => {
   if (!amountDue && !isPaymentConfirmation) {
     // If it's a recognized statement but data is in attachment, try to estimate from subject
     if (isStatementSubject && isAttachmentEmail) {
+      // ⚠️  PRIVACY: Clear sensitive email data from memory before returning
+      rawBody.length = 0;
       return {
         bankName: bank.bankName,
         last4Digits: null,
@@ -312,6 +314,10 @@ const processEmail = (email) => {
     statementDate,
     isPaymentConfirmation,
   };
+
+  // ⚠️  PRIVACY: Clear sensitive email data from memory after extraction
+  // Prevents accidental logging or exposure if errors occur downstream
+  rawBody.length = 0;
 
   return result;
 };

@@ -38,6 +38,10 @@ const discoverCardsForUser = async (user) => {
   // ── Step 2: Extract unique card identifiers ──────────────────────────────
   for (const email of emails) {
     const parsed = processEmail(email);
+    
+    // ⚠️  PRIVACY: Clear email body from memory after parsing to prevent data leaks
+    email.body = null;
+    
     if (parsed && parsed.bankName && parsed.last4Digits) {
       const key = `${parsed.bankName}_${parsed.last4Digits}`;
       if (!discoveredCards.has(key)) {
