@@ -8,14 +8,29 @@ const DuesBreakdownChart = ({ refreshKey }) => {
 
   useEffect(() => {
     setLoading(true);
-    fetch('http://127.0.0.1:5000/api/dashboard/dues-distribution')
-      .then(r => r.json())
+    fetch('http://localhost:5000/api/dashboard/dues-distribution', {
+      credentials: 'include'  // Include httpOnly cookie
+    })
+      .then(r => {
+        if (!r.ok) throw new Error(`API Error: ${r.status}`);
+        return r.json();
+      })
       .then(dist => {
-        setData(dist);
-        setTotalDue(dist.reduce((s, d) => s + d.value, 0));
+        // Ensure dist is an array
+        if (Array.isArray(dist)) {
+          setData(dist);
+          setTotalDue(dist.reduce((s, d) => s + (d.value || 0), 0));
+        } else {
+          console.error('❌ Invalid response format:', dist);
+          setData([]);
+        }
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(err => {
+        console.error('❌ Failed to fetch dues distribution:', err);
+        setData([]);
+        setLoading(false);
+      });
   }, [refreshKey]);
 
   if (loading && data.length === 0) {

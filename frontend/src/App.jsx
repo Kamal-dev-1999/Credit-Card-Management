@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import CardStack from './components/CardStack';
@@ -14,6 +15,7 @@ import AIInsights from './components/AIInsights';
 import GlobalChatbot from './components/GlobalChatbot';
 
 function App() {
+  const { userEmail, isLoading: authLoading, logout } = useAuth();
   const [activePage, setActivePage] = useState('dashboard');
   const [activeCard, setActiveCard] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -24,11 +26,8 @@ function App() {
   // Fetch notifications from backend
   const fetchNotifications = async () => {
     try {
-      const userEmail = localStorage.getItem('lana_user_email');
-      const res = await fetch('http://127.0.0.1:5000/api/notifications', {
-        headers: {
-          'x-user-email': userEmail || ''
-        }
+      const res = await fetch('http://localhost:5000/api/notifications', {
+        credentials: 'include', // Send cookies
       });
       const data = await res.json();
       setNotifications(data.notifications || []);
@@ -48,13 +47,11 @@ function App() {
 
   const markAllAsRead = async () => {
     try {
-      const userEmail = localStorage.getItem('lana_user_email');
-      
-      const response = await fetch('http://127.0.0.1:5000/api/notifications/mark-all-read', {
+      const response = await fetch('http://localhost:5000/api/notifications/mark-all-read', {
         method: 'POST',
+        credentials: 'include', // Send cookies
         headers: {
           'Content-Type': 'application/json',
-          'x-user-email': userEmail || ''
         }
       });
 
@@ -73,13 +70,11 @@ function App() {
 
   const markNotificationAsRead = async (notificationId) => {
     try {
-      const userEmail = localStorage.getItem('lana_user_email');
-      
-      const response = await fetch('http://127.0.0.1:5000/api/notifications/mark-read', {
+      const response = await fetch('http://localhost:5000/api/notifications/mark-read', {
         method: 'POST',
+        credentials: 'include', // Send cookies
         headers: {
           'Content-Type': 'application/json',
-          'x-user-email': userEmail || ''
         },
         body: JSON.stringify({ notificationId })
       });
@@ -110,13 +105,11 @@ function App() {
 
   const clearAllNotifications = async () => {
     try {
-      const userEmail = localStorage.getItem('lana_user_email');
-      
-      const response = await fetch('http://127.0.0.1:5000/api/notifications/clear-all', {
+      const response = await fetch('http://localhost:5000/api/notifications/clear-all', {
         method: 'DELETE',
+        credentials: 'include', // Send cookies
         headers: {
           'Content-Type': 'application/json',
-          'x-user-email': userEmail || ''
         }
       });
 
@@ -225,8 +218,8 @@ function App() {
 
   return (
     <div className="flex h-screen bg-white overflow-hidden font-sans">
-      <Sidebar activePage={activePage} setActivePage={setActivePage} onSignOut={() => {
-        localStorage.removeItem('lana_user_email');
+      <Sidebar activePage={activePage} setActivePage={setActivePage} onSignOut={async () => {
+        await logout();
         window.location.reload();
       }} />
       

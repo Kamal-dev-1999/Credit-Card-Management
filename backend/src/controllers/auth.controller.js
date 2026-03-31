@@ -1,5 +1,7 @@
 const { google } = require('googleapis');
 const { supabase } = require('../config/supabase');
+const { encrypt } = require('../utils/encryption');
+const { generateToken } = require('../utils/jwt');
 require('dotenv').config();
 
 // Configure the Google OAuth2 client
@@ -55,25 +57,44 @@ const handleGoogleCallback = async (req, res) => {
     if (upsertError) throw upsertError;
     const user = upsertedUser;
 
+    // ── Encrypt and store the refresh token ──
     if (tokens.refresh_token) {
+      const encryptedRefreshToken = encrypt(tokens.refresh_token);
+      
       const { error: updateError } = await supabase
         .from('users')
-        .update({ google_refresh_token: tokens.refresh_token })
+        .update({ google_refresh_token: encryptedRefreshToken })
         .eq('id', user.id);
+        
       if (updateError) {
-        // Non-fatal — log and continue even if column doesn't exist yet
-        console.warn('Could not store refresh token:', updateError.message);
+        console.warn('⚠️  Could not store refresh token:', updateError.message);
       } else {
-        // Refresh token stored successfully
+        console.log('✅ Encrypted refresh token stored securely');
       }
     } else {
       console.log('⚠️ No refresh token — user may have authorized before.');
     }
 
-    // Redirect back to the frontend with the real user email
-    res.redirect(`http://localhost:5173/?auth=success&email=${encodeURIComponent(userEmail)}`);
+    // ── Generate JWT and set httpOnly cookie ──
+    const jwtToken = generateToken(user.id, userEmail);
+
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.cookie('auth_token', jwtToken, {
+      httpOnly: true,        // Prevents XSS attacks
+      secure: false,         // Allow HTTP in development
+      sameSite: 'lax',       // Works with top-level navigation across ports
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: '/',
+    });
+
+    console.log(`✅ User authenticated: ${userEmail}`);
+    console.log(`✅ Cookie set with token (httpOnly, sameSite=lax)`);
+    
+    // Redirect back to frontend - IMPORTANT: Use same origin as frontend (localhost, not 127.0.0.1)
+    res.redirect('http://localhost:5173/?auth=success');
   } catch (error) {
-    console.error('Error handling Google Callback:', error);
+    console.error('❌ Error handling Google Callback:', error);
     res.redirect('http://localhost:5173/?auth=error');
   }
 };

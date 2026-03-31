@@ -5,12 +5,12 @@ const { supabaseAdmin } = require('../config/supabase.js');
  */
 const getNotificationsController = async (req, res) => {
   try {
-    // Get user email from headers (sent by frontend)
-    const userEmail = req.headers['x-user-email'];
+    // Get user email from JWT token
+    const userEmail = req.user?.email;
     
-    if (!userEmail) {
-      console.log('⚠️  No user email provided in headers');
-      return res.status(200).json({ notifications: [] });
+    if (!userEmail || userEmail === 'anonymous-user') {
+      console.log('⚠️  User not authenticated for notifications');
+      return res.status(401).json({ error: 'Not authenticated' });
     }
 
     // Fetching notifications...
@@ -53,29 +53,25 @@ const getNotificationsController = async (req, res) => {
  */
 const markNotificationAsReadController = async (req, res) => {
   try {
-    const { notificationId } = req.body;
+    const { notificationId, id } = req.validated;
+    const notifId = notificationId || id;
 
-    console.log(`📝 Attempting to mark notification as read: ${notificationId}`);
-
-    if (!notificationId) {
-      console.warn('⚠️  No notification ID provided');
-      return res.status(400).json({ error: 'Notification ID required' });
-    }
+    console.log(`📝 Attempting to mark notification as read: ${notifId}`);
 
     // First verify the notification exists
     const { data: notification, error: fetchError } = await supabaseAdmin
       .from('notifications')
       .select('id, read')
-      .eq('id', notificationId)
+      .eq('id', notifId)
       .single();
 
     if (fetchError) {
       console.error('❌ Error fetching notification:', fetchError);
-      throw fetchError;
+      return res.status(404).json({ error: 'Notification not found' });
     }
 
     if (!notification) {
-      console.warn(`⚠️  Notification not found: ${notificationId}`);
+      console.warn(`⚠️  Notification not found: ${notifId}`);
       return res.status(404).json({ error: 'Notification not found' });
     }
 
@@ -85,7 +81,7 @@ const markNotificationAsReadController = async (req, res) => {
     const { data: updated, error: updateError } = await supabaseAdmin
       .from('notifications')
       .update({ read: true })
-      .eq('id', notificationId)
+      .eq('id', notifId)
       .select('id, read');
 
     if (updateError) {
@@ -94,10 +90,10 @@ const markNotificationAsReadController = async (req, res) => {
     }
 
     if (updated && updated.length > 0) {
-      console.log(`✅ Notification marked as read: ${notificationId} - New status: ${JSON.stringify(updated[0])}`);
+      console.log(`✅ Notification marked as read: ${notifId} - New status: ${JSON.stringify(updated[0])}`);
       res.json({ success: true, message: 'Notification marked as read', notification: updated[0] });
     } else {
-      console.warn(`⚠️  Update returned no results for notification: ${notificationId}`);
+      console.warn(`⚠️  Update returned no results for notification: ${notifId}`);
       res.json({ success: true, message: 'Notification marked as read' });
     }
   } catch (err) {
@@ -111,7 +107,7 @@ const markNotificationAsReadController = async (req, res) => {
  */
 const markAllNotificationsAsReadController = async (req, res) => {
   try {
-    const userEmail = req.headers['x-user-email'];
+    const userEmail = req.user?.email;
 
     // Marking all notifications as read...
 
@@ -159,7 +155,7 @@ const markAllNotificationsAsReadController = async (req, res) => {
  */
 const clearAllNotificationsController = async (req, res) => {
   try {
-    const userEmail = req.headers['x-user-email'];
+    const userEmail = req.user?.email;
 
     // Clearing all notifications...
 
@@ -214,6 +210,111 @@ const clearAllNotificationsController = async (req, res) => {
 };
 
 /**
+ * Create test notifications for the current user (for testing purposes)
+ */
+const createTestNotificationsController = async (req, res) => {
+  try {
+    const userEmail = req.user?.email;
+    
+    if (!userEmail || userEmail === 'anonymous-user') {
+      console.log('⚠️  User not authenticated for test notifications');
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    console.log(`🧪 [Notifications] Creating test notifications for ${userEmail}`);
+
+    // Sample test notifications
+    const testNotifications = [
+      {
+        useremail: userEmail,
+        type: 'payment_due',
+        icon: 'money',
+        title: 'Payment Due Tomorrow',
+        message: 'Your HDFC Credit Card payment is due tomorrow. Amount: ₹15,500',
+        read: false,
+        actionurl: '/dashboard',
+        createdat: new Date(Date.now() - 2 * 60000).toISOString() // 2 minutes ago
+      },
+      {
+        useremail: userEmail,
+        type: 'reward_earned',
+        icon: 'sparkles',
+        title: 'Reward Points Earned!',
+        message: 'You earned 500 reward points on your recent transaction!',
+        read: false,
+        actionurl: '/dashboard',
+        createdat: new Date(Date.now() - 30 * 60000).toISOString() // 30 minutes ago
+      },
+      {
+        useremail: userEmail,
+        type: 'overdue_alert',
+        icon: 'alert',
+        title: 'Payment Overdue',
+        message: 'Your ICICI Card payment is overdue by 5 days. Please pay immediately!',
+        read: false,
+        actionurl: '/dashboard',
+        createdat: new Date(Date.now() - 2 * 60 * 60000).toISOString() // 2 hours ago
+      },
+      {
+        useremail: userEmail,
+        type: 'bill_paid',
+        icon: 'success',
+        title: 'Bill Payment Successful',
+        message: 'Your payment of ₹25,000 to Axis Bank has been processed.',
+        read: false,
+        actionurl: '/dashboard',
+        createdat: new Date(Date.now() - 5 * 60 * 60000).toISOString() // 5 hours ago
+      },
+      {
+        useremail: userEmail,
+        type: 'ai_insight',
+        icon: 'sparkles',
+        title: 'New AI Insight Available',
+        message: 'Your personalized financial insights are ready. Check recommendation tab!',
+        read: true,
+        actionurl: '/ai-insights',
+        createdat: new Date(Date.now() - 24 * 60 * 60000).toISOString() // 1 day ago
+      }
+    ];
+
+    // Insert test notifications
+    const { data: inserted, error } = await supabaseAdmin
+      .from('notifications')
+      .insert(testNotifications)
+      .select();
+
+    if (error) {
+      console.error('❌ Error creating test notifications:', error);
+      return res.status(500).json({ error: 'Failed to create test notifications', details: error.message });
+    }
+
+    console.log(`✅ Created ${inserted?.length || 0} test notifications for ${userEmail}`);
+    
+    // Return the created notifications in display format
+    const formattedNotifications = (inserted || []).map((notif) => ({
+      id: notif.id,
+      type: notif.type,
+      icon: notif.icon,
+      title: notif.title,
+      message: notif.message,
+      time: formatTimeAgo(new Date(notif.createdat)),
+      read: notif.read,
+      actionUrl: notif.actionurl
+    }));
+
+    res.json({ 
+      success: true,
+      message: `Created ${inserted?.length || 0} test notifications`,
+      notifications: formattedNotifications,
+      count: inserted?.length || 0
+    });
+  } catch (err) {
+    console.error('❌ Error creating test notifications:', err);
+    res.status(500).json({ error: 'Failed to create test notifications', details: err.message });
+  }
+};
+
+/**
  * Format time difference for display
  */
 const formatTimeAgo = (date) => {
@@ -235,5 +336,6 @@ module.exports = {
   getNotificationsController,
   markNotificationAsReadController,
   markAllNotificationsAsReadController,
-  clearAllNotificationsController
+  clearAllNotificationsController,
+  createTestNotificationsController
 };

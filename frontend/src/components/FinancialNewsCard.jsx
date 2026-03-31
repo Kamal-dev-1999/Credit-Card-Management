@@ -24,7 +24,9 @@ const FinancialNewsCard = () => {
 
   const fetchNews = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:5000/api/news/financial');
+      const res = await fetch('http://localhost:5000/api/news/financial', {
+        credentials: 'include'  // Include httpOnly cookie
+      });
       const data = await res.json();
       if (data.articles && data.articles.length > 0) {
         setNews(data.articles);
