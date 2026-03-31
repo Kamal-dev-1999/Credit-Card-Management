@@ -99,6 +99,7 @@ USING (
     AND cards.userid = auth.uid()
   )
 )
+
 WITH CHECK (
   EXISTS (
     SELECT 1 FROM cards
