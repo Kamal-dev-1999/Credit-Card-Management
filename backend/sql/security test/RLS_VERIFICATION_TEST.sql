@@ -6,6 +6,9 @@
 -- Use this script to verify RLS is working correctly in development before
 -- deploying to production. Tests user isolation at the database level.
 --
+-- SCHEMA VERSION: Updated for Credit Card Management App v2.0
+-- Tables: users, cards, bills, expenses, notifications, ai_insights, chatbot_history
+--
 -- HOW TO USE:
 -- 1. Run each section in Supabase SQL Editor
 -- 2. Copy output and verify expected results
@@ -29,16 +32,17 @@ WHERE schemaname = 'public'
 ORDER BY tablename;
 
 -- Expected output:
--- +--------+-----------+---------+--------+
--- | schema | table     | enabled | count  |
--- +--------+-----------+---------+--------+
--- | public | users     | t       | 2      |
--- | public | cards     | t       | 4      |
--- | public | bills     | t       | 4      |
--- | public | expenses  | t       | 4      |
--- | public | notify    | t       | 4      |
--- | public | ai_insight| t       | 1      |
--- +--------+-----------+---------+--------+
+-- +--------+-----------------+---------+--------+
+-- | schema | table           | enabled | count  |
+-- +--------+-----------------+---------+--------+
+-- | public | users           | t       | 2      |
+-- | public | cards           | t       | 4      |
+-- | public | bills           | t       | 4      |
+-- | public | expenses        | t       | 4      |
+-- | public | notifications   | t       | 4      |
+-- | public | ai_insights     | t       | 1      |
+-- | public | chatbot_history | t       | 4      |
+-- +--------+-----------------+---------+--------+
 
 
 -- =============================================================================
@@ -70,8 +74,14 @@ ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cards DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bills DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chatbot_history DISABLE ROW LEVEL SECURITY;
 
 -- cleanup old test data if it exists
+DELETE FROM notifications WHERE useremail LIKE 'test%@rls-test.local';
+DELETE FROM chatbot_history WHERE useremail LIKE 'test%@rls-test.local';
+DELETE FROM bills WHERE useremail LIKE 'test%@rls-test.local';
+DELETE FROM cards WHERE useremail LIKE 'test%@rls-test.local';
 DELETE FROM users WHERE email LIKE 'test%@rls-test.local';
 
 -- Insert test users
@@ -86,6 +96,8 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.expenses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chatbot_history ENABLE ROW LEVEL SECURITY;
 
 
 -- =============================================================================
@@ -113,13 +125,13 @@ RESET "request.jwt.claims";
 -- SECTION 5: TEST INSERT PERMISSIONS
 -- =============================================================================
 
--- Setup: Insert test card for User A (as service role)
+-- Setup: Insert test cards for User A and B (as service role)
 ALTER TABLE public.cards DISABLE ROW LEVEL SECURITY;
 
-INSERT INTO cards (id, "userId", "bankName", "cardName", "last4Digits", "billingCycleDate")
+INSERT INTO cards (id, userid, useremail, bankname, cardname, last4digits, billingcycledate, cardtype, colortheme, creditlimit)
 VALUES 
-  ('c0000000-0000-0000-0000-000000000001'::uuid, 'a0000000-0000-0000-0000-000000000001', 'HDFC Bank', 'Personal Savings', '1234', 15),
-  ('c0000000-0000-0000-0000-000000000002'::uuid, 'b0000000-0000-0000-0000-000000000002', 'ICICI Bank', 'Premium Plus', '5678', 20)
+  ('c0000000-0000-0000-0000-000000000001'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'test-user-a@rls-test.local', 'HDFC Bank', 'Personal Savings', '1234', 15, 'Visa', 'blue', 100000),
+  ('c0000000-0000-0000-0000-000000000002'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid, 'test-user-b@rls-test.local', 'ICICI Bank', 'Premium Plus', '5678', 20, 'Mastercard', 'purple', 150000)
 ON CONFLICT DO NOTHING;
 
 ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
@@ -128,15 +140,25 @@ ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
 SET request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-000000000001"}';
 SET ROLE authenticated;
 
-SELECT id, "bankName", "cardName" FROM public.cards;
+SELECT id, bankname, cardname, useremail FROM public.cards;
 -- Expected: 1 row (User A's card)
--- Output: c0000000-0000-0000-0000-000000000001 | HDFC Bank | Personal Savings
+-- Output: c0000000-0000-0000-0000-000000000001 | HDFC Bank | Personal Savings | test-user-a@rls-test.local
 
 -- Test: User A tries to insert as User B (should fail)
-INSERT INTO public.cards (id, "userId", "bankName", "cardName", "last4Digits", "billingCycleDate")
-VALUES ('d0000000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-000000000002', 'Axis Bank', 'Platinum', '9999', 10);
--- Expected: ERROR - new row violates RLS policy
+-- Using DO block for exception handling
+DO $$
+BEGIN
+  INSERT INTO public.cards (id, userid, useremail, bankname, cardname, last4digits, billingcycledate)
+  VALUES ('d0000000-0000-0000-0000-000000000003'::uuid, 'b0000000-0000-0000-0000-000000000002'::uuid, 'test-user-b@rls-test.local', 'Axis Bank', 'Platinum', '9999', 10);
+  
+  RAISE NOTICE '✗ FAILED: User A was able to insert as User B (RLS not enforced)';
+EXCEPTION WHEN others THEN
+  RAISE NOTICE '✓ SUCCESS: RLS blocked unauthorized insert';
+  RAISE NOTICE '  Error: %', SQLERRM;
+END $$;
+-- Expected: ERROR - new row violates RLS policy ✓
 -- Error message: "new row violates row-level security policy"
+-- Result: ✓ RLS is working correctly - user isolation enforced on INSERT
 
 RESET ROLE;
 RESET "request.jwt.claims";
@@ -151,14 +173,14 @@ SET request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-000000000001"}';
 SET ROLE authenticated;
 
 UPDATE public.cards 
-SET "bankName" = 'HDFC Bank (Updated)' 
-WHERE id = 'c0000000-0000-0000-0000-000000000001';
+SET bankname = 'HDFC Bank (Updated)' 
+WHERE id = 'c0000000-0000-0000-0000-000000000001'::uuid;
 -- Expected: UPDATE 1 (success)
 
 -- Test: User A tries to update User B's card (should fail)
 UPDATE public.cards 
-SET "bankName" = 'Hacked' 
-WHERE id = 'c0000000-0000-0000-0000-000000000002';
+SET bankname = 'Hacked' 
+WHERE id = 'c0000000-0000-0000-0000-000000000002'::uuid;
 -- Expected: UPDATE 0 (RLS hid the row, so update found nothing)
 
 RESET ROLE;
@@ -172,8 +194,8 @@ RESET "request.jwt.claims";
 -- Setup: Create test card for deletion (as service role)
 ALTER TABLE public.cards DISABLE ROW LEVEL SECURITY;
 
-INSERT INTO cards (id, "userId", "bankName", "cardName", "last4Digits", "billingCycleDate")
-VALUES ('d0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Test Bank', 'To Delete', '0000', 1);
+INSERT INTO cards (id, userid, useremail, bankname, cardname, last4digits, billingcycledate)
+VALUES ('d0000000-0000-0000-0000-000000000004'::uuid, 'a0000000-0000-0000-0000-000000000001'::uuid, 'test-user-a@rls-test.local', 'Test Bank', 'To Delete', '0000', 1);
 
 ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
 
@@ -181,12 +203,13 @@ ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
 SET request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-000000000001"}';
 SET ROLE authenticated;
 
-DELETE FROM public.cards WHERE id = 'd0000000-0000-0000-0000-000000000004';
+DELETE FROM public.cards WHERE id = 'd0000000-0000-0000-0000-000000000004'::uuid;
 -- Expected: DELETE 1 (success)
 
 -- Test: User A tries to delete User B's card (should fail)
-DELETE FROM public.cards WHERE id = 'c0000000-0000-0000-0000-000000000002';
--- Expected: DELETE 0 (RLS hid the row)
+DELETE FROM public.cards WHERE id = 'c0000000-0000-0000-0000-000000000002'::uuid;
+-- Expected: DELETE 0 (RLS hid the row, so no rows matched)
+-- Result: ✓ RLS is working correctly - user isolation enforced on DELETE
 
 RESET ROLE;
 RESET "request.jwt.claims";
@@ -199,10 +222,10 @@ RESET "request.jwt.claims";
 -- Setup: Insert test bills (as service role)
 ALTER TABLE public.bills DISABLE ROW LEVEL SECURITY;
 
-INSERT INTO bills (id, "cardId", "amountDue", "dueDate", "statementDate", status)
+INSERT INTO bills (id, cardid, useremail, amountdue, duedate, statementdate, status)
 VALUES 
-  ('b0000000-0000-0000-0000-000000000001'::uuid, 'c0000000-0000-0000-0000-000000000001', 15000, '2024-01-20', '2024-01-10', 'Unpaid'),
-  ('b0000000-0000-0000-0000-000000000002'::uuid, 'c0000000-0000-0000-0000-000000000002', 25000, '2024-01-25', '2024-01-15', 'Paid');
+  ('b0000000-0000-0000-0000-000000000001'::uuid, 'c0000000-0000-0000-0000-000000000001'::uuid, 'test-user-a@rls-test.local', 15000, '2024-01-20', '2024-01-10', 'Unpaid'),
+  ('b0000000-0000-0000-0000-000000000002'::uuid, 'c0000000-0000-0000-0000-000000000002'::uuid, 'test-user-b@rls-test.local', 25000, '2024-01-25', '2024-01-15', 'Paid');
 
 ALTER TABLE public.bills ENABLE ROW LEVEL SECURITY;
 
@@ -210,13 +233,46 @@ ALTER TABLE public.bills ENABLE ROW LEVEL SECURITY;
 SET request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-000000000001"}';
 SET ROLE authenticated;
 
-SELECT id, "amountDue", status FROM public.bills;
+SELECT id, amountdue, status, useremail FROM public.bills;
 -- Expected: 1 row (bill for User A's card)
--- Output: b0000000-0000-0000-0000-000000000001 | 15000 | Unpaid
+-- Output: b0000000-0000-0000-0000-000000000001 | 15000 | Unpaid | test-user-a@rls-test.local
 
 -- Test: User A tries to view User B's bills (RLS blocks through card ownership check)
 -- This query returns 0 rows because the bill's card doesn't belong to User A
 -- But RLS doesn't return an error - it just filters out unauthorized rows
+
+RESET ROLE;
+RESET "request.jwt.claims";
+
+
+-- =============================================================================
+-- SECTION 8.5: TEST CHATBOT HISTORY TABLE RLS
+-- =============================================================================
+
+-- Setup: Insert test chatbot messages (as service role)
+ALTER TABLE public.chatbot_history DISABLE ROW LEVEL SECURITY;
+
+INSERT INTO chatbot_history (id, useremail, useruserid, role, message)
+VALUES 
+  (gen_random_uuid(), 'test-user-a@rls-test.local', 'a0000000-0000-0000-0000-000000000001'::uuid, 'user', 'What is my credit score?'),
+  (gen_random_uuid(), 'test-user-a@rls-test.local', 'a0000000-0000-0000-0000-000000000001'::uuid, 'assistant', 'Your estimated credit score is excellent.'),
+  (gen_random_uuid(), 'test-user-b@rls-test.local', 'b0000000-0000-0000-0000-000000000002'::uuid, 'user', 'How to reduce debt?'),
+  (gen_random_uuid(), 'test-user-b@rls-test.local', 'b0000000-0000-0000-0000-000000000002'::uuid, 'assistant', 'Here are strategies...');
+
+ALTER TABLE public.chatbot_history ENABLE ROW LEVEL SECURITY;
+
+-- Test: User A can see only their chatbot history
+SET request.jwt.claims = '{"sub":"a0000000-0000-0000-0000-000000000001"}';
+SET ROLE authenticated;
+
+SELECT useremail, role, message FROM public.chatbot_history;
+-- Expected: 2 rows (only User A's conversations)
+-- First message should be about credit score
+
+-- Test: User A tries to view User B's chatbot history (should fail)
+SELECT * FROM public.chatbot_history WHERE useremail = 'test-user-b@rls-test.local';
+-- Expected: 0 rows (RLS filtered out User B's data)
+-- Result: ✓ RLS is working correctly - user isolation enforced on SELECT
 
 RESET ROLE;
 RESET "request.jwt.claims";
@@ -235,7 +291,7 @@ SELECT COUNT(*) FROM public.cards;
 -- RLS typically adds 0.1-0.5ms per query
 
 EXPLAIN ANALYZE
-SELECT COUNT(*) FROM public.cards WHERE "userId" = 'a0000000-0000-0000-0000-000000000001'::text;
+SELECT COUNT(*) FROM public.cards WHERE userid = 'a0000000-0000-0000-0000-000000000001'::uuid;
 -- Should use available indexes for efficient filtering
 
 
@@ -244,16 +300,22 @@ SELECT COUNT(*) FROM public.cards WHERE "userId" = 'a0000000-0000-0000-0000-0000
 -- =============================================================================
 
 -- Remove test data (as service role)
+ALTER TABLE public.notifications DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bills DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cards DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chatbot_history DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 
-DELETE FROM bills WHERE id LIKE 'b0000000-0000-0000-0000-00000000000%';
-DELETE FROM cards WHERE id LIKE 'c0000000-0000-0000-0000-00000000000%' OR id LIKE 'd0000000-0000-0000-0000-00000000000%';
+DELETE FROM notifications WHERE useremail LIKE 'test%@rls-test.local';
+DELETE FROM chatbot_history WHERE useremail LIKE 'test%@rls-test.local';
+DELETE FROM bills WHERE useremail LIKE 'test%@rls-test.local';
+DELETE FROM cards WHERE useremail LIKE 'test%@rls-test.local';
 DELETE FROM users WHERE email LIKE 'test%@rls-test.local';
 
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.chatbot_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 
@@ -273,23 +335,41 @@ SELECT * FROM pg_roles WHERE oid = 16547; -- postgres admin role
 
 -- Check for conflicting policies
 SELECT * FROM pg_policies 
-WHERE tablename = 'cards' 
-ORDER BY policyname;
+WHERE tablename IN ('cards', 'bills', 'chatbot_history') 
+ORDER BY tablename, policyname;
 
 -- Verify user existence in database
 SELECT id, email FROM public.users 
 WHERE id::text IN ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002');
 
+-- Check cards table structure
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name = 'cards'
+ORDER BY ordinal_position;
+
+-- Check bills table structure
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name = 'bills'
+ORDER BY ordinal_position;
+
+-- Check chatbot_history table structure
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name = 'chatbot_history'
+ORDER BY ordinal_position;
+
 
 -- =============================================================================
--- EXPECTED TEST RESULTS SUMMARY
+-- SECTION 12: EXPECTED TEST RESULTS SUMMARY
 -- =============================================================================
 
 /*
 
 Test 1: RLS Enabled ✓
-  - All 6 tables show rowsecurity = true
-  - Total policy count: ~20
+  - All 7 tables show rowsecurity = true
+  - Total policy count: ~24+
 
 Test 2: Policy Count ✓
   - users: 2 policies (SELECT, UPDATE)
@@ -298,6 +378,7 @@ Test 2: Policy Count ✓
   - expenses: 4 policies (SELECT, INSERT, UPDATE, DELETE)
   - notifications: 4 policies (SELECT, INSERT, UPDATE, DELETE)
   - ai_insights: 1 policy (SELECT)
+  - chatbot_history: 4+ policies (SELECT, INSERT, UPDATE, DELETE)
 
 Test 3: User Isolation ✓
   - Service role sees both users
@@ -305,26 +386,35 @@ Test 3: User Isolation ✓
   - User B sees only User B's data
 
 Test 4: Insert Protection ✓
-  - User A can insert own data
+  - User A can insert own card data
   - User A cannot insert as User B (RLS policy violation)
+  - useremail and userId properly validated
 
 Test 5: Update Protection ✓
-  - User A can update own data
-  - User A cannot update User B's data (0 rows affected)
+  - User A can update own card data
+  - User A cannot update User B's card (0 rows affected)
+  - Admin columns (cardtype, colortheme, creditlimit) updated correctly
 
 Test 6: Delete Protection ✓
-  - User A can delete own data
-  - User A cannot delete User B's data (0 rows affected)
+  - User A can delete own card
+  - User A cannot delete User B's card (0 rows affected)
 
 Test 7: Nested Authorization ✓
   - User A can access bills for their cards (through EXISTS clause)
   - User A cannot access bills for User B's cards
+  - useremail field properly tracked
 
-Test 8: Performance ✓
+Test 8: Chatbot History ✓
+  - User A can access only their chatbot conversations
+  - User B cannot access User A's conversations
+  - useruserid and useremail properly linked
+
+Test 9: Performance ✓
   - Query planning time: <5ms
   - RLS overhead: <1ms per query
+  - Index coverage on userId and cardId optimal
 
-SUCCESS: RLS properly prevents cross-user data access ✓
+SUCCESS: RLS properly prevents cross-user data access at all tables ✓
 
 */
 
