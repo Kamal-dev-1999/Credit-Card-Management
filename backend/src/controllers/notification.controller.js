@@ -53,29 +53,25 @@ const getNotificationsController = async (req, res) => {
  */
 const markNotificationAsReadController = async (req, res) => {
   try {
-    const { notificationId } = req.body;
+    const { notificationId, id } = req.validated;
+    const notifId = notificationId || id;
 
-    console.log(`📝 Attempting to mark notification as read: ${notificationId}`);
-
-    if (!notificationId) {
-      console.warn('⚠️  No notification ID provided');
-      return res.status(400).json({ error: 'Notification ID required' });
-    }
+    console.log(`📝 Attempting to mark notification as read: ${notifId}`);
 
     // First verify the notification exists
     const { data: notification, error: fetchError } = await supabaseAdmin
       .from('notifications')
       .select('id, read')
-      .eq('id', notificationId)
+      .eq('id', notifId)
       .single();
 
     if (fetchError) {
       console.error('❌ Error fetching notification:', fetchError);
-      throw fetchError;
+      return res.status(404).json({ error: 'Notification not found' });
     }
 
     if (!notification) {
-      console.warn(`⚠️  Notification not found: ${notificationId}`);
+      console.warn(`⚠️  Notification not found: ${notifId}`);
       return res.status(404).json({ error: 'Notification not found' });
     }
 
@@ -85,7 +81,7 @@ const markNotificationAsReadController = async (req, res) => {
     const { data: updated, error: updateError } = await supabaseAdmin
       .from('notifications')
       .update({ read: true })
-      .eq('id', notificationId)
+      .eq('id', notifId)
       .select('id, read');
 
     if (updateError) {
@@ -94,10 +90,10 @@ const markNotificationAsReadController = async (req, res) => {
     }
 
     if (updated && updated.length > 0) {
-      console.log(`✅ Notification marked as read: ${notificationId} - New status: ${JSON.stringify(updated[0])}`);
+      console.log(`✅ Notification marked as read: ${notifId} - New status: ${JSON.stringify(updated[0])}`);
       res.json({ success: true, message: 'Notification marked as read', notification: updated[0] });
     } else {
-      console.warn(`⚠️  Update returned no results for notification: ${notificationId}`);
+      console.warn(`⚠️  Update returned no results for notification: ${notifId}`);
       res.json({ success: true, message: 'Notification marked as read' });
     }
   } catch (err) {

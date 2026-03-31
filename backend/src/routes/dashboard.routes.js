@@ -1,5 +1,6 @@
 const express = require('express');
 const { supabase, supabaseAdmin } = require('../config/supabase');
+const { validateRequest, UpdateBillStatusSchema } = require('../utils/validation');
 
 const router = express.Router();
 
@@ -65,18 +66,18 @@ router.get('/summary', async (req, res) => {
  * PATCH /api/bills/:id/status
  * Update the status of a bill (Paid, Upcoming, Overdue)
  */
-router.patch('/:id/status', async (req, res) => {
+router.patch('/:id/status', validateRequest(UpdateBillStatusSchema), async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, amount_paid, paid_date } = req.validated;
 
-    if (!status) {
-      return res.status(400).json({ error: 'Status is required' });
-    }
+    const updatePayload = { status };
+    if (amount_paid !== undefined) updatePayload.amount_paid = amount_paid;
+    if (paid_date) updatePayload.paid_date = paid_date;
 
     const { data, error } = await supabase
       .from('bills')
-      .update({ status })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single();

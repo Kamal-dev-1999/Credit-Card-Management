@@ -6,6 +6,7 @@ const {
   clearAllNotificationsController,
   createTestNotificationsController
 } = require('../controllers/notification.controller.js');
+const { validateRequest, MarkNotificationReadSchema } = require('../utils/validation');
 
 const router = express.Router();
 
@@ -19,7 +20,7 @@ router.get('/', getNotificationsController);
  * POST /api/notifications/mark-read
  * Mark a notification as read
  */
-router.post('/mark-read', markNotificationAsReadController);
+router.post('/mark-read', validateRequest(MarkNotificationReadSchema), markNotificationAsReadController);
 
 /**
  * POST /api/notifications/mark-all-read

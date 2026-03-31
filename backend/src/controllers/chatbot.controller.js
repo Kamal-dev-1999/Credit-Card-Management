@@ -5,11 +5,7 @@ const { supabaseAdmin } = require('../config/supabase');
  */
 const getConversationHistoryController = async (req, res) => {
   try {
-    const userEmail = req.params.userEmail;
-    
-    if (!userEmail) {
-      return res.status(400).json({ error: 'User email is required' });
-    }
+    const userEmail = req.validatedParams.userEmail;
 
     // Fetch conversation history from database
     const { data: messages, error } = await supabaseAdmin
@@ -40,20 +36,12 @@ const getConversationHistoryController = async (req, res) => {
  */
 const askChatbotController = async (req, res) => {
   try {
-    const { message, userEmail, conversationHistory } = req.body;
+    const { message, userEmail, conversationHistory } = req.validated;
     const authUserEmail = req.user?.email;
-
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
-    }
-
-    if (!userEmail) {
-      return res.status(400).json({ error: 'User email is required' });
-    }
 
     // Verify user is asking for their own data
     if (authUserEmail && authUserEmail !== userEmail && authUserEmail !== 'anonymous-user') {
-      return res.status(403).json({ error: 'Unauthorized' });
+      return res.status(403).json({ error: 'Unauthorized - cannot access other users\' messages' });
     }
 
     console.log(`🤖 [Chatbot] Processing message from ${userEmail}`);

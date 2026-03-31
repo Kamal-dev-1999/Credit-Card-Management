@@ -1,6 +1,7 @@
 const express = require('express');
 const { supabase } = require('../config/supabase');
 const { discoverCardsForUser } = require('../controllers/discover.controller');
+const { validateRequest, CreateCardSchema, UpdateCardSchema } = require('../utils/validation');
 
 const router = express.Router();
 
@@ -49,23 +50,18 @@ router.post('/discover', async (req, res) => {
  * POST /api/cards
  * Create a new card (manual addition)
  */
-router.post('/', async (req, res) => {
+router.post('/', validateRequest(CreateCardSchema), async (req, res) => {
   try {
     const userEmail = req.user?.email || 'default-user';
-    const { bankname, cardname, last4digits, cardtype, colortheme } = req.body;
-
-    // Basic validation
-    if (!last4digits || last4digits.length !== 4 || !/^\d{4}$/.test(last4digits)) {
-      return res.status(400).json({ error: 'last4digits must be exactly 4 numbers' });
-    }
+    const { bankname, cardname, last4digits, cardtype, colortheme } = req.validated;
 
     const { data, error } = await supabase
       .from('cards')
       .insert([{
-        bankname: bankname || 'Unknown Bank',
-        cardname: cardname || 'Unnamed Card',
+        bankname,
+        cardname,
         last4digits,
-        cardtype: cardtype || 'Visa',
+        cardtype: cardtype || 'credit',
         colortheme: colortheme || 'midnight-purple',
       }])
       .select()
@@ -74,7 +70,7 @@ router.post('/', async (req, res) => {
     if (error) throw error;
 
     console.log(`✅ [Cards] New card added: ${bankname} (•••• ${last4digits})`);
-    res.json(data);
+    res.status(201).json(data);
   } catch (err) {
     console.error('❌ [Cards] Error:', err.message);
     res.status(500).json({ error: err.message });
@@ -108,15 +104,10 @@ router.delete('/:id', async (req, res) => {
  * PUT /api/cards/:id
  * Update a card by ID
  */
-router.put('/:id', async (req, res) => {
+router.put('/:id', validateRequest(UpdateCardSchema), async (req, res) => {
   try {
     const { id } = req.params;
-    const { bankName, cardName, last4Digits, cardType, colorTheme, billingCycleDate } = req.body;
-
-    // Basic validation
-    if (last4Digits && (last4Digits.length !== 4 || !/^\d{4}$/.test(last4Digits))) {
-      return res.status(400).json({ error: 'last4Digits must be exactly 4 numbers' });
-    }
+    const { bankName, cardName, last4Digits, cardType, colorTheme, billingCycleDate } = req.validated;
 
     const updateData = {};
     if (bankName) updateData.bankname = bankName;
